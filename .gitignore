@@ -1,0 +1,18 @@
+# 生成物 —— 每次 build.mjs 跑出来的成品页，不进版本库
+Output/*.html
+
+# make-test.mjs 派生出来的违规样本，跑一次就重新生成，不进版本库
+# （tests/fixtures/ok.json 是手写的真源，必须提交）
+tests/fixtures/bad-*.json
+tests/fixtures/ok-exempt-words.json
+
+# ★ 实跑时的工作目录：剧本原文、从剧本派生的盘点数据、一次性加工脚本。
+#   ★★ 绝不能进版本库 —— 里头是**第三方的剧本原文**（受版权保护的作品），
+#   公开发布是侵权，而且对使用者零价值。skill 本体一个字都不依赖 tmp/：
+#   build.mjs / check-sync.mjs / make-test.mjs 都不引用它，
+#   要跑验收用 tests/fixtures/ok.json 那份自造的合规样本。
+tmp/
+
+node_modules/
+.DS_Store
+Thumbs.db

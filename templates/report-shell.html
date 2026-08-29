@@ -1,0 +1,695 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>资产盘点 — {{TITLE}}</title>
+<!--
+================================================================================
+  ad-asset-bible 静态外壳 —— 一个字都不要改。
+  数据由 scripts/build.mjs 注入到底部 id="data" 的脚本块，三张表在客户端渲染。
+  （本注释里刻意不写占位符字面量：build.mjs 用 replace 只换第一处，
+    注释里再出现一次会把数据注进注释、真正的槽位反而空着。踩过。）
+
+  ★ 三类资产同住一份 JSON，不是图省事：props[].refs 要能被校验
+    "你引用的那个 tag 确实存在"，拆成三份数据源就拦不住拼错一个字。
+
+  ★ note / brief / meta.worldview 里不许留会话引用（"[Image #9]"这类插图编号、
+    "如图所示"、"见上图"）—— 产出必须脱离当次对话也能读懂，使用者手上没有那张截图。
+    build.mjs 的 PLACEHOLDER_RE 现在也扫这三处。
+
+  数据契约：
+  {
+    "meta": {
+      "title":  "片名",
+      "script": "剧本路径/名称",
+      "sceneCount":   77,   // 剧本原始场次数
+      "assetCount":   19,   // 去重后场景数
+      "variantCount": 10,   // 场景变体数
+      "charCount":     4,   // 角色底档数   （characters 非空时必填）
+      "outfitCount":  12,   // 服装资产数   （outfits    非空时必填）
+      "propCount":     6,   // 关键道具数   （props      非空时必填）
+      "worldview": "一两句话：年代/阶层/风格的结论（第 0 步的产出，必填）。
+                    只写结论本身，依据留在各资产的 note 里；显示在页面顶部剧本路径正下方。"
+    },
+
+    // ── 一、场景（必填，至少一份） ──────────────────────────────
+    "assets": [{
+      "tag":    "@loc_shenfu",           // @loc_ + 小写英数下划线，全项目一套命名
+      "name":   "沈家 · 正院",
+      "scenes": ["5-1","6-1","9-1"],     // 这份资产覆盖剧本哪几场
+      "note":   "去重依据或需人确认的事（可选）",
+      "basedOn": "@loc_menting",         // 可选：同一物理空间内的"主区域"场景 tag
+                                         // （只指另一份场景的主 tag，不指变体/不指自己；
+                                         //   注意它跟变体 tag 长得不一样——变体是
+                                         //   "@loc_shenfu_night" 这种主 tag 加后缀，
+                                         //   basedOn 指的是**另一份独立的场景资产**）
+                                         // ★ 有 basedOn = 生图时要拿主区域的成图做参考、
+                                         //   续风格续色调（图生图模式），不是纯文生图
+                                         // ★ 同一组 basedOn 链的场景在 assets[] 里的下标
+                                         //   必须连续排在一起，不能被别的场景隔开
+      "brief":  "几句话说清这个场景是什么、什么调性、哪件东西是认得出的参照物。
+                 不写尺寸、不写材料清单、不写机位光线——那些是 Lira 和图像模型的活，
+                 写多了反而压掉模型自己的先验，图会变差。场景图里不该有人。",
+      "variants": [
+        { "tag":"@loc_shenfu_night", "name":"夜景", "scenes":["12-2"],
+          "brief":"改成夜景，院里点起灯笼" }
+      ]
+    }],
+
+    // ── 二、角色底档（可选）：脸/年龄/身形/发型，跨服装不变的那部分，写一遍 ──
+    //    不是出图单元，所以**不登记场次**（光有一张脸出不了图）
+    "characters": [{
+      "tag":   "@char_xiaoming",         // @char_ + 小写英数下划线
+      "name":  "小明",
+      "note":  "可选",
+      "brief": "18 岁少年，圆脸，短寸头……只写跨服装不变的：脸、年龄、身形、发型。
+                不写表情情绪姿势（那是下游每个镜头的事），不写性格评语（渲不出来）。"
+    }],
+
+    // ── 三、服装资产（可选）＝ 出图单元「角色 + 一套服装」 ────────
+    //    换一整套衣服 = 图生图没有共同像素 = 另一份资产，不是变体
+    "outfits": [{
+      "tag":    "@char_xiaoming_xuesheng",   // 必须以 char 的 tag + "_" 开头
+      "char":   "@char_xiaoming",            // 指向 characters[] 里的底档
+      "name":   "小明 · 学生装",
+      "scenes": ["1-1","3-2"],
+      "note":   "可选",
+      "brief":  "只写这一套衣服：形制、料子、几处使用痕迹、哪件配饰是参照物。脸在底档里，别重复。",
+      "variants": [                          // 状态变体：同一套衣服坏了/脏了
+        { "tag":"@char_xiaoming_xuesheng_hurt", "name":"受伤破损", "scenes":["12-1"],
+          "brief":"额角一道血痕，校服右肩撕开一道口子，左襟溅上暗色斑点" }
+      ]
+    }],
+
+    // ── 四、关键道具（可选）：只收**跨场景**的 ───────────────────
+    //    只有跨场景复用的东西才有漂移风险、才值得建资产锁；
+    //    用一次的道具交给图像模型的先验，列出来反而是在压先验
+    "props": [{
+      "tag":    "@prop_yupei",           // @prop_ + 小写英数下划线
+      "name":   "定情玉佩",
+      "scenes": ["5-1","30-2"],          // 少于 2 个场次会被拒 —— 那不是关键道具
+      "note":   "可选",
+      "brief":  "几句话写清这是什么东西、什么料子什么工、哪一处细节最好认。",
+      "refs":   ["@char_xiaoming_xuesheng"],  // 可选：这件道具上间接引用了谁/哪儿的形象
+                                              // （照片、油画、绣像、建筑画）
+                                              // ★ 必须指到**服装级或场景级**，不能指角色底档
+                                              //   —— 底档只有脸，照片上这人穿的是哪套？
+                                              // ★ 有 refs = 必须走参考生图，被引用的图要先出
+      "variants": [
+        { "tag":"@prop_yupei_broken", "name":"碎裂", "scenes":["48-1"],
+          "brief":"改成断成两截，断口新崭、边缘发白" }
+      ]
+    }]
+  }
+
+  URL 参数:
+    ?tab=loc|char|prop|all   切到哪张表。all = 三张表同时铺开
+                             （★ 无头截图自检必须用 all，否则只截得到当前那一张；
+                               浏览器 Ctrl+F 也搜不到隐藏 Tab 里的文字）
+    ?row=N                   高亮并滚到第 N 行（会自动切到该行所在的那张表）
+    ?selftest=1              把 SELFTEST 横条显示出来。它默认**不显示给人看** ——
+                             节点始终在 DOM 里，自检靠 --dump-dom 抓，不靠肉眼
+================================================================================
+-->
+<style>
+  :root{
+    --bg:#0f1113; --panel:#171a1d; --panel2:#1d2125; --border:#2a2f35;
+    --text:#e7e9ea; --dim:#9aa2a8; --faint:#6b7378;
+    --accent:#c8975a; --ok:#4ade80; --bad:#f87171; --ref:#7dd3fc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",-apple-system,system-ui,sans-serif;
+    line-height:1.7;padding:24px 28px 80px;font-size:14px}
+  /* ★ 铺满页面，不设 max-width —— 曾经卡在 1180px 居中，宽屏上两侧空出大片背景，
+     像是内容被裁掉了一截。body 的左右 padding 就是唯一的留白，不再另加一层收窄。 */
+  .wrap{max-width:none;margin:0}
+  h1{font-size:24px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:10px}
+
+  /* 世界观小结（第 0 步的产出）—— 放在剧本路径正下方，页面顶部就要看到，
+     不能只留在聊天记录里。旧数据没有这个字段时整块隐藏。 */
+  .worldview{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:6px;padding:8px 12px;margin-bottom:16px;font-size:13px;line-height:1.7}
+  .worldview b{color:var(--accent);font-weight:600;margin-right:8px}
+  .worldview.empty{display:none}
+
+  /* SELFTEST 横条：**默认不显示给人看** —— 它是给自检用的凭证，不是给读者看的内容。
+     ★ 但节点始终留在 DOM 里、class="fail" 也照常打上，
+       所以 `--dump-dom | grep SELFTEST` 那套自检一个字都不用改。
+     要用肉眼看它（调试时），在网址后加 ?selftest=1 */
+  #badge{display:none;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12px;
+    background:#0d2818;border:1px solid var(--ok);color:var(--ok);
+    border-radius:6px;padding:9px 12px;margin-bottom:14px;white-space:pre-wrap;overflow-wrap:break-word}
+  .selftest #badge{display:block}
+  #badge.fail{background:#2a1113;border-color:var(--bad);color:#fca5a5}
+  #badge b{color:#fff}  #badge .x{color:var(--bad);font-weight:700}
+
+  .meta{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:12px 16px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:8px 28px;font-size:13px}
+  .meta div span{color:var(--dim)}
+  .meta b{color:var(--accent);font-weight:600}
+
+  /* ---------- Tab 栏 ----------
+     ★ 未选中标签用 --dim 不用 --faint：--faint 在 --bg 上只有 3.6:1，达不到 4.5:1。
+     ★ 选中态同时给颜色**和**下划线 —— 只靠颜色区分对色觉障碍不成立。 */
+  .tabs{position:sticky;top:0;z-index:5;display:flex;align-items:stretch;flex-wrap:wrap;
+    background:var(--bg);border-bottom:1px solid var(--border);margin:22px 0 0}
+  .tabs.off{display:none}
+  .tab{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;
+    color:var(--dim);font:inherit;font-size:13.5px;padding:12px 16px;cursor:pointer;
+    display:flex;align-items:center;gap:7px;min-height:44px;
+    transition:color .16s ease,border-color .16s ease,background-color .16s ease}
+  .tab:hover{color:var(--text);background:rgba(255,255,255,.03)}
+  .tab:active{background:rgba(255,255,255,.07)}
+  .tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);background:var(--panel)}
+  .tab:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+  .tab .n{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:11.5px;
+    color:var(--faint);border:1px solid var(--border);border-radius:3px;padding:1px 6px}
+  .tab[aria-selected="true"] .n{color:var(--accent);border-color:var(--accent)}
+  /* 「全部展开」是**模式开关**不是第四个 Tab —— 靠右、用另一个颜色，别混进同级项里 */
+  .spread{margin-left:auto}
+  .spread[aria-pressed="true"]{color:var(--ok);border-bottom-color:var(--ok);background:var(--panel)}
+  .spread[aria-pressed="true"] .n{color:var(--ok);border-color:var(--ok)}
+  .tabnote{color:var(--faint);font-size:12px;line-height:1.7;margin:9px 0 14px}
+  .tabnote b{color:var(--dim)}
+  code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:11.5px;color:var(--dim)}
+
+  .sect{display:none}
+  .sect.on{display:block}
+  h2{font-size:15px;margin:22px 0 10px;padding-left:9px;border-left:3px solid var(--accent);
+    font-weight:600;letter-spacing:.02em}
+  h2 em{font-style:normal;color:var(--faint);font-size:12.5px;font-weight:400;margin-left:10px}
+  /* Tab 模式下 Tab 标签已经说了表名，h2 就是重复；全部展开模式才需要它分隔三张表 */
+  .mode-tabs .sect h2{display:none}
+
+  .tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+  table{width:100%;min-width:900px;border-collapse:collapse;table-layout:fixed}
+  col.c0{width:5%} col.c1{width:20%} col.c2{width:42%} col.c3{width:33%}
+  /* ★ 表头的 sticky 是相对 .tablewrap 算的，不是相对视口：overflow-x:auto 会把
+     overflow-y 也算成 auto，.tablewrap 因此成了滚动容器。所以这里必须 top:0 ——
+     给它加 Tab 栏的高度做偏移会把表头推进表格里、盖住第一行（踩过）。
+     也正因为如此，表头只在 .tablewrap 自己滚动时吸顶，跟 Tab 栏不会打架。 */
+  thead th{position:sticky;top:0;background:var(--panel2);z-index:2;
+    text-align:left;padding:10px 14px;font-size:12px;letter-spacing:.06em;
+    color:var(--dim);text-transform:uppercase;border-bottom:1px solid var(--border)}
+  tbody td{padding:14px;vertical-align:top;border-bottom:1px solid var(--border);
+    word-break:break-word;overflow-wrap:anywhere}
+  tbody tr:hover{background:rgba(255,255,255,.02)}
+  tbody tr.hl{outline:2px solid var(--accent);outline-offset:-2px}
+  /* 角色底档分组行：一个角色的脸只有一份，下面跟着它的各套服装 */
+  tbody tr.grp>td{background:var(--panel2);border-bottom:1px solid var(--accent)}
+  tbody tr.grp:hover{background:var(--panel2)}
+  /* ★ 第一格是序号，缩进要落在身份格（第二格）上，不是序号格 ——
+     加了序号列之后 :first-child 已经不对了，改用 :nth-child(2)。 */
+  tbody tr.sub>td:nth-child(2){padding-left:26px}
+
+  .tag{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;color:var(--accent);font-weight:600}
+  .rn{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;color:var(--faint);text-align:right}
+  .aname{font-size:14px;margin-top:2px;font-weight:600}
+  .scenes{color:var(--faint);font-size:12px;margin-top:6px;font-family:"SF Mono",Menlo,Consolas,monospace;line-height:1.5}
+  .cnt{display:inline-block;margin-top:7px;font-size:11px;padding:2px 7px;border-radius:3px;
+    border:1px solid var(--border);color:var(--dim)}
+  .note{margin-top:8px;font-size:12px;color:#fcd34d;line-height:1.6;
+    border-left:2px solid #fbbf24;padding-left:8px}
+  .brief{font-size:14px;line-height:1.8}
+  .base{font-size:12.5px;line-height:1.7;color:var(--faint);margin-bottom:6px;
+    padding-bottom:6px;border-bottom:1px dotted var(--border)}
+  .base b{color:var(--dim);font-weight:600}
+  .base i{font-style:normal;color:var(--faint);opacity:.75}
+
+  /* 间接引用 —— 这件道具上画着别的资产的形象，必须走参考生图 */
+  .refs{margin-top:10px;font-size:12.5px;line-height:1.65;color:var(--ref);
+    border:1px dashed var(--ref);border-radius:5px;padding:7px 9px;background:rgba(125,211,252,.05)}
+  .refs b{color:#e0f2fe}
+  .refs code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12px;color:inherit}
+
+  /* 同一物理空间内的衍生区域 —— 生图要拿主区域的成图做风格/色调参考（图生图），
+     跟 .refs 是不同性质的引用（.refs 要求身份一致，这个只要求风格一致），
+     故意用另一个颜色（--ok 绿）区分，别让人误以为是同一条规则。 */
+  .basedon{margin-top:10px;font-size:12.5px;line-height:1.65;color:#bbf7d0;
+    border:1px dashed var(--ok);border-radius:5px;padding:7px 9px;background:rgba(74,222,128,.05)}
+  .basedon b{color:#dcfce7}
+  .basedon code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12px;color:inherit}
+
+  .var{border:1px dashed var(--border);border-radius:6px;padding:9px 11px;margin-bottom:8px;
+    background:rgba(255,255,255,.015)}
+  .var:last-child{margin-bottom:0}
+  .var .vt{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:11.5px;color:var(--accent)}
+  .var .vn{font-weight:600;margin-left:6px}
+  .var .vs{color:var(--faint);font-size:11.5px;font-family:"SF Mono",Menlo,Consolas,monospace;margin-left:6px}
+  .var .vb{margin-top:4px;color:var(--dim);font-size:13px}
+  .novar{color:var(--faint);font-style:italic;font-size:13px}
+
+  .copy{float:right;background:transparent;color:var(--accent);border:1px solid var(--border);
+    border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-family:inherit;margin-left:8px}
+  .copy:hover{border-color:var(--accent)}
+  .copy.done{color:var(--ok);border-color:var(--ok)}
+  .howto{color:var(--faint);font-size:12px;margin-top:22px;line-height:1.75}
+  .howto b{color:var(--dim)}
+  #probe{position:absolute;left:-9999px;top:-9999px;font-size:100px;white-space:nowrap}
+</style></head><body>
+<div class="wrap">
+  <div id="badge">SELFTEST 正在计算…</div>
+  <h1 id="h1">资产盘点</h1>
+  <div class="sub" id="sub"></div>
+  <div class="worldview empty" id="worldview"></div>
+  <div class="meta" id="meta"></div>
+
+  <div class="tabs" id="tabs" role="tablist" aria-label="资产类别"></div>
+  <div class="tabnote">
+    <b>三张表结构相同</b>：序号 | 资产 | 需求描述 | 变体。变体的判据也是同一句 ——
+    <b>主资产那个东西，在这个变体里还在画面里吗？</b>
+    在 = 变体（图生图有共同像素）；不在 = 另一份资产。<br>
+    <b>「全部展开」</b>把三张表同时铺开 —— 浏览器的 Ctrl+F 搜不到隐藏 Tab 里的文字，
+    要跨表搜、或者要一次截全，先按它（等同于在网址后加 <code>?tab=all</code>）。
+  </div>
+
+  <div class="sect" id="sect-loc" role="tabpanel" aria-labelledby="tab-loc" tabindex="-1">
+    <h2>场景 <em>这个剧本有几个地方、每场戏在哪一处</em></h2>
+    <div class="tablewrap">
+      <table>
+        <colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"></colgroup>
+        <thead><tr><th>序号</th><th>场景</th><th>需求描述</th><th>变体</th></tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sect" id="sect-char" role="tabpanel" aria-labelledby="tab-char" tabindex="-1">
+    <h2>角色 · 服装 <em>出图单元是「角色 + 一套服装」；脸只有一份底档，换整套衣服是另一份资产</em></h2>
+    <div class="tablewrap">
+      <table>
+        <colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"></colgroup>
+        <thead><tr><th>序号</th><th>角色 · 服装</th><th>需求描述</th><th>状态变体</th></tr></thead>
+        <tbody id="tbc"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sect" id="sect-prop" role="tabpanel" aria-labelledby="tab-prop" tabindex="-1">
+    <h2>关键道具 <em>只收跨场景的；带蓝框的必须走参考生图</em></h2>
+    <div class="tablewrap">
+      <table>
+        <colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"></colgroup>
+        <thead><tr><th>序号</th><th>关键道具</th><th>需求描述</th><th>状态变体</th></tr></thead>
+        <tbody id="tbp"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="howto">
+    <b>这份表是资产盘点</b> —— 这个剧本有几个场景/角色/道具、每个要几个变体、每场戏用哪一个。
+    描述刻意只有几句话：写多了会压掉图像模型自己的先验，图反而更差
+    （实测过，「一个中式庭院」五个字比上千字的规格出图更好）。
+    尺寸、材料、机位、光线一律不写 —— 那些是 Lira 和图像模型的活。<br>
+    换机位、下雨、烧成废墟、衣服撕破、玉佩碎裂都是变体；
+    镜头搬进另一个房间、换一整套衣服、换成一枚仿制的玉佩都不是 —— 那些是另一份资产。<br>
+    <b>三个「复制」各给一样东西，都不带标签和场次这类账目信息</b>：
+    <b>序号列</b>只是行号，方便用 <code>?row=N</code> 指认一行，不参与复制；
+    <b>资产列</b>给<b>资产名</b>（「沈云卿 · 诰命礼服」，拿去当文件名或指代）；
+    <b>需求描述列</b>给<b>需求描述原文</b>（服装格前面拼上底档，脸和衣服下游都要；
+    有蓝框的道具附一句参考生图说明）；
+    <b>变体列</b>只给<b>本变体那一句改动</b> —— 不重复基础描述
+    （主视角图已经出过了，变体是在那张图上做编辑）。<br>
+    <b>蓝框的「参考生图」</b>是说这件道具上画着别的资产的形象（照片、油画、建筑画）——
+    必须先出被引用那张图，再以它为参考生成这件道具，不要凭文字另画一遍。
+  </div></div>
+<div id="probe">场</div>
+<script id="data" type="application/json">{{DATA_JSON}}</script>
+<script>
+/* 校验常量 —— 与 scripts/build.mjs 里的同名常量必须逐字一致（自包含 HTML 无法 import）。
+   跑 node scripts/check-sync.mjs 可自动比对。 */
+var PLACEHOLDER_RE = /\[(?![0-9]+\])[^\]]{0,80}\]|___|TODO|待填|占位/;
+/* 下游词：机位/景别/光质/调色是 Lira 与 color-script 的活，写进需求描述会跟它们打架。
+   三类资产通用 —— 角色的"肤色偏冷"、道具的"整体色调"一样越界。 */
+var DOWNSTREAM = ['机位','景别','构图','焦段','景深','虚化','运镜','特写','远景','近景','中景','俯拍','仰拍',
+  '光比','柔光','硬光','主光','补光','布光','光晕','颗粒','暗角','过曝',
+  '饱和度','色相','色调','偏暖','偏冷','对比度','调色','影调'];
+/* 只写需求、不写"为什么有这个需求"：场次号 / 场次统计 / 用途说明 / 跨行指代一律不许进描述。
+   场次账目在第一列已经有了。 */
+var SCENE_ID_RE = /\d{1,3}\s*-\s*\d{1,2}|[Ss]\d{2,3}(?![0-9])/;
+var SCENE_COUNT_RE = /第?[一二三四五六七八九十两百\d]{1,4}\s*场(?!院)/;
+var PURPOSE_RE = /时用|那几场用|场用|时候用|都需要这个|才用/;
+/* ★ PEOPLE 只管**场景** —— 场景资产图里不该有人；角色资产图里当然要有人，
+   道具（照片、油画）也可能正当地引用人。按资产类型分派，绝不能一套扫全部。 */
+var PEOPLE = ['人物','角色','众人','一群人','两拨人','过肩'];
+/* 每一格必须脱离别的格单独读懂：指向别行的说法一律不许 */
+var CROSS_REF = ['同一处','同一座','同一个','同上','上述','前述','那处','该处','同前','全片','剧本'];
+/* 角色专有：资产图是中性站姿的形象底板，表情/姿态属于下游每个镜头 */
+var EMOTION = ['表情','情绪','微笑','笑容','皱眉','愤怒','怒目','哭','泪','眼神','神情',
+  '姿势','站姿','坐姿','手势','动作','面无表情'];
+/* 角色专有：性格是评语，扩散模型渲不出来 —— 跟场景那边的"讲究/寒素"同类 */
+var TRAIT = ['性格','温柔','善良','内向','开朗','精明','狡猾','正直','气质','高冷','傲气','看起来很'];
+/* 参照物必须写 —— 只查场景（它的锚点是位置参照）。服装已不强制，方法留作最佳实践。
+   底档的锚点是脸上那处辨识点、道具的锚点是物件自身的特征，都不是位置参照，故不查。
+   ★ 闸门只能查"有没有写"，位置对不对查不了。 */
+var ANCHOR_RE = /参照物/;
+/* 变体必须还是同一份资产。三条各管一类，判据是同一句：主资产还在画面里吗？ */
+var RELOCATE_RE = /(视点|视角|镜头|机位)\s*(移进|移到|移入|挪进|挪到|换到|转到|进到)/;
+var OUTFIT_SWAP = ['另一套','另一身','换一套','换一身','整套换','换成另','改成另一'];
+var PROP_SWAP = ['另一件','另一枚','另一把','另一张','换一件','仿制','赝品','复制品','替代品'];
+
+var D = JSON.parse(document.getElementById('data').textContent);
+var Q = new URLSearchParams(location.search);
+/* SELFTEST 横条默认藏起来 —— 读者不该看到自检凭证。节点仍在 DOM 里，无头 grep 照常。 */
+if(Q.get('selftest')) document.documentElement.className='selftest';
+var esc = function(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML};
+
+var LOCS  = D.assets     || [];
+var CHARS = D.characters || [];
+var FITS  = D.outfits    || [];
+var PROPS = D.props      || [];
+
+/* tag → 名称，给 refs 提示用（含变体） */
+var NAMES = {};
+LOCS.forEach(function(a){ NAMES[a.tag]=a.name; (a.variants||[]).forEach(function(v){NAMES[v.tag]=a.name+' · '+v.name}) });
+CHARS.forEach(function(c){ NAMES[c.tag]=c.name });
+FITS.forEach(function(f){ NAMES[f.tag]=f.name; (f.variants||[]).forEach(function(v){NAMES[v.tag]=f.name+' · '+v.name}) });
+PROPS.forEach(function(p){ NAMES[p.tag]=p.name; (p.variants||[]).forEach(function(v){NAMES[v.tag]=p.name+' · '+v.name}) });
+var BASE = {};   // 角色底档 tag → brief
+CHARS.forEach(function(c){ BASE[c.tag]=c.brief });
+
+document.getElementById('h1').textContent='资产盘点 — '+(D.meta.title||'');
+document.getElementById('sub').textContent=(D.meta.script?'剧本：'+D.meta.script:'');
+var wvEl=document.getElementById('worldview');
+if(D.meta.worldview){ wvEl.innerHTML='<b>世界观</b>'+esc(D.meta.worldview); wvEl.classList.remove('empty'); }
+var mparts=
+  '<div><span>原始场次</span> <b>'+esc(D.meta.sceneCount)+'</b></div>'+
+  '<div><span>去重后场景</span> <b>'+esc(D.meta.assetCount)+'</b></div>'+
+  '<div><span>场景变体</span> <b>'+esc(D.meta.variantCount)+'</b></div>';
+if(CHARS.length) mparts+='<div><span>角色底档</span> <b>'+CHARS.length+'</b></div>';
+if(FITS.length)  mparts+='<div><span>服装资产</span> <b>'+FITS.length+'</b></div>';
+if(PROPS.length) mparts+='<div><span>关键道具</span> <b>'+PROPS.length+'</b></div>';
+document.getElementById('meta').innerHTML=mparts;
+
+/* ---------- 复制文本 ----------
+   ★ 规则：**复制的是需求本身，不带任何账目信息。**
+     不加 "场景 @loc_xxx —— 名称" 这类前缀 —— 那是标签和账目，粘进提示词里是纯噪声，
+     而且第一列那个按钮已经专门给名字了，要名字从那儿拿。
+   变体只给**本变体的这一句改动**，不重复基础描述 ——
+   主视角图已经出过了，变体是在那张图上做编辑，把前面一样的内容再发一遍是白烧 token。
+   两个例外，因为它们**是需求内容、不是账目**：
+     - 服装格拼上底档全文（脸和衣服下游都要，而底档只有一份权威版本、不该各行各写一遍）
+     - 有 refs 的道具附一句参考生图说明（那个蓝框就长在这一格里） */
+var payloads=[], rowN=0;
+var push=function(t){ return payloads.push({t:t})-1 };
+function refLines(refs){
+  /* 有 refs = 这件道具上画着别的资产的形象，必须走参考生图。
+     复制文本里必须带上这句，否则下游会凭文字另画一遍 —— 那正是最要避免的事。 */
+  if(!refs||!refs.length) return '';
+  return '\n参考生图：本图上引用了 '+refs.map(function(r){
+    return r+(NAMES[r]?'（'+NAMES[r]+'）':'');
+  }).join('、')+' —— 以该资产的成图为参考生成，不要凭文字另画。';
+}
+function basedOnLine(bo){
+  /* 有 basedOn = 这份场景是同一物理空间里的衍生区域，生图要拿主区域的成图
+     做风格/色调参考（图生图），跟 refLines 那种"身份引用"不是一回事，
+     但同样必须带进复制文本，否则下游按文字文生图，风格会跟主区域对不上。 */
+  if(!bo) return '';
+  return '\n风格参考：以 '+bo+(NAMES[bo]?'（'+NAMES[bo]+'）':'')+
+    ' 的成图为参考生成（图生图），保持同一空间的风格/色调/建材质感一致，不要凭文字另画风格。';
+}
+
+/* ---------- 一行资产的三格 ---------- */
+function sceneCell(list){
+  /* 主角能有几十个场次号，全铺出来这一列会很高。铺前 14 个，其余靠 title 悬停看。 */
+  var s=list||[], shown=s.length>14?s.slice(0,14):s;
+  return '<div class="scenes" title="'+esc(s.join(' '))+'">场次 '+esc(shown.join(' '))+
+    (s.length>14?' … ':'')+'</div>';
+}
+function variantCell(vs){
+  if(!vs||!vs.length) return '<span class="novar">— 无变体，只需主视角一版</span>';
+  return vs.map(function(v){
+    var vi=push(v.brief);
+    return '<div class="var"><button class="copy" data-p="'+vi+'">复制</button>'+
+      '<span class="vt">'+esc(v.tag)+'</span><span class="vn">'+esc(v.name)+'</span>'+
+      '<span class="vs">'+esc((v.scenes||[]).join(' '))+'</span>'+
+      '<div class="vb">'+esc(v.brief)+'</div></div>';
+  }).join('');
+}
+function addRow(tbody, opts){
+  rowN++;
+  var tr=document.createElement('tr');
+  tr.id='r'+rowN;
+  if(opts.sub) tr.className='sub';
+  /* ★ 第二列是**身份列**，它的「复制」只给名字（"沈云卿 · 诰命礼服"）——
+     拿去当文件名、当对话里的指代。需求描述由第三列那个按钮给。
+     序号列只是行号（配 ?row=N 用），不参与复制，跟账目、标签一样不进剪贴板。 */
+  var ni=push(opts.name);
+  tr.innerHTML=
+    '<td class="rn">'+rowN+'</td>'+
+    '<td><button class="copy" data-p="'+ni+'" title="复制资产名">复制</button>'+
+      '<div class="tag">'+esc(opts.tag)+'</div>'+
+      '<div class="aname">'+esc(opts.name)+'</div>'+
+      sceneCell(opts.scenes)+
+      '<span class="cnt">'+(opts.scenes||[]).length+' 场 · '+(opts.vs||[]).length+' 变体</span>'+
+      (opts.note?'<div class="note">'+esc(opts.note)+'</div>':'')+
+    '</td>'+
+    '<td><button class="copy" data-p="'+opts.pi+'" title="复制需求描述">复制</button>'+
+      (opts.baseHtml||'')+
+      '<div class="brief">'+esc(opts.brief)+'</div>'+
+      (opts.refsHtml||'')+'</td>'+
+    '<td>'+variantCell(opts.vs)+'</td>';
+  tbody.appendChild(tr);
+}
+
+/* ---------- 场景表 ---------- */
+var tb=document.getElementById('tb');
+LOCS.forEach(function(a){
+  var boHtml = a.basedOn ? '<div class="basedon"><b>◈ 风格参考</b> 以 <code>'+esc(a.basedOn)+'</code>'+
+    (NAMES[a.basedOn]?'（'+esc(NAMES[a.basedOn])+'）':'')+
+    ' 的成图为参考 —— 同一空间的衍生区域，图生图续风格/色调，不要凭文字另画。</div>' : '';
+  addRow(tb,{tag:a.tag,name:a.name,scenes:a.scenes,note:a.note,brief:a.brief,vs:a.variants||[],
+    sub:!!a.basedOn, refsHtml:boHtml,
+    pi:push(a.brief+basedOnLine(a.basedOn))});
+});
+
+/* ---------- 角色表 ----------
+   底档一行（跨 3 列）+ 它名下的各套服装。服装格的复制文本是「底档 + 这套衣服」，
+   因为出图时脸和衣服下游都要，而底档只有一份权威版本、不该被各行各写一遍。
+   ★ 显示上只放一行指针（全文就在紧邻的底档行里，一个角色三套服装就要铺三遍全文），
+     但**复制文本一定带底档全文** —— 使用者拿走的是剪贴板里那段，不是屏幕上这段。 */
+var tbc=document.getElementById('tbc');
+var byChar={}; FITS.forEach(function(f){ (byChar[f.char]=byChar[f.char]||[]).push(f) });
+function outfitRows(list, base){
+  (list||[]).forEach(function(f){
+    addRow(tbc,{sub:true,tag:f.tag,name:f.name,scenes:f.scenes,note:f.note,brief:f.brief,vs:f.variants||[],
+      baseHtml:(base?'<div class="base"><b>底档</b> '+esc(base.tag)+' · '+esc(base.name)+
+        '　<i>「复制」含底档全文</i></div>':''),
+      pi:push((base?base.brief+'\n':'')+f.brief)});
+  });
+}
+CHARS.forEach(function(c){
+  var mine=byChar[c.tag]||[];
+  var pi=push(c.brief);
+  var tr=document.createElement('tr');
+  tr.className='grp';
+  tr.innerHTML='<td colspan="4"><button class="copy" data-p="'+pi+'">复制</button>'+
+    '<span class="tag">'+esc(c.tag)+'</span> <span class="aname" style="display:inline">'+esc(c.name)+'</span>'+
+    '<span class="cnt" style="margin-left:10px">底档 · '+mine.length+' 套服装</span>'+
+    '<div class="brief">'+esc(c.brief)+'</div>'+
+    (c.note?'<div class="note">'+esc(c.note)+'</div>':'')+'</td>';
+  tbc.appendChild(tr);
+  outfitRows(mine, c);
+  delete byChar[c.tag];
+});
+Object.keys(byChar).forEach(function(k){ outfitRows(byChar[k], null) });  // 兜底：底档缺失（build 会拒）
+
+/* ---------- 道具表 ---------- */
+var tbp=document.getElementById('tbp');
+PROPS.forEach(function(p){
+  var rf=(p.refs||[]);
+  var refsHtml = rf.length ? '<div class="refs"><b>⚑ 必须走参考生图</b> —— 本图上引用了 '+
+      rf.map(function(r){return '<code>'+esc(r)+'</code>'+(NAMES[r]?'（'+esc(NAMES[r])+'）':'')}).join('、')+
+      '。先出那张图，再以它为参考生成这件道具，不要凭文字另画。</div>' : '';
+  addRow(tbp,{tag:p.tag,name:p.name,scenes:p.scenes,note:p.note,brief:p.brief,vs:p.variants||[],
+    refsHtml:refsHtml,
+    pi:push(p.brief+refLines(rf))});
+});
+
+/* 空的那张表不出 Tab —— 纯场景盘点仍然合法 */
+var SECTS=[
+  {k:'loc', lab:'场景',      n:LOCS.length},
+  {k:'char',lab:'角色 · 服装',n:FITS.length},
+  {k:'prop',lab:'关键道具',   n:PROPS.length}
+];
+var LIVE=SECTS.filter(function(s){return s.n>0});
+var tabsEl=document.getElementById('tabs'), wrapEl=document.querySelector('.wrap');
+var sectOf=function(k){return document.getElementById('sect-'+k)};
+
+/* ---------- Tab 切换 ----------
+   ?tab=loc|char|prop|all 深链；all = 三张表同时铺开
+   （无头截图自检要一次看到三张表，Ctrl+F 也搜不到隐藏 Tab 里的文字）。
+   用 replaceState 不用 pushState：切 Tab 不该往浏览历史里塞记录、把返回键搞坏。 */
+var btns={}, spreadBtn=null, curTab=null;
+function activate(k, focus){
+  var all=(k==='all');
+  curTab=k;
+  wrapEl.className='wrap '+(all?'mode-all':'mode-tabs');
+  LIVE.forEach(function(s){
+    var on=all||s.k===k;
+    sectOf(s.k).className='sect'+(on?' on':'');
+    var b=btns[s.k];
+    if(b){ b.setAttribute('aria-selected', (!all&&s.k===k)?'true':'false');
+           b.tabIndex=(s.k===k)?0:-1; }
+  });
+  if(spreadBtn) spreadBtn.setAttribute('aria-pressed', all?'true':'false');
+  if(focus&&btns[k]) btns[k].focus();
+  var q=new URLSearchParams(location.search); q.set('tab',k);
+  try{ history.replaceState(null,'','?'+q.toString()+location.hash); }catch(e){}
+}
+function mkTab(id,label,count,cls,title){
+  var b=document.createElement('button');
+  b.className='tab'+(cls?' '+cls:''); b.id=id; b.type='button';
+  if(title) b.title=title;
+  b.innerHTML=esc(label)+'<span class="n">'+count+'</span>';
+  tabsEl.appendChild(b); return b;
+}
+if(LIVE.length>1){
+  LIVE.forEach(function(s){
+    var b=mkTab('tab-'+s.k, s.lab, s.n, '');
+    b.setAttribute('role','tab'); b.setAttribute('aria-controls','sect-'+s.k);
+    b.setAttribute('aria-selected','false'); b.tabIndex=-1;
+    b.addEventListener('click',function(){activate(s.k)});
+    btns[s.k]=b;
+  });
+  spreadBtn=mkTab('tab-all','全部展开', LIVE.reduce(function(a,s){return a+s.n},0), 'spread',
+    '三张表同时铺开 —— 跨表 Ctrl+F、或者一次截全都要用它');
+  spreadBtn.setAttribute('aria-pressed','false');
+  spreadBtn.addEventListener('click',function(){activate(curTab==='all'?LIVE[0].k:'all')});
+  /* 键盘：← → 在 Tab 之间移动并切换，Home/End 到两端（WAI-ARIA tabs 的做法） */
+  tabsEl.addEventListener('keydown',function(e){
+    var ks=LIVE.map(function(s){return s.k}), i=ks.indexOf(curTab);
+    if(i<0) return;
+    var to=null;
+    if(e.key==='ArrowRight') to=ks[(i+1)%ks.length];
+    else if(e.key==='ArrowLeft') to=ks[(i-1+ks.length)%ks.length];
+    else if(e.key==='Home') to=ks[0];
+    else if(e.key==='End') to=ks[ks.length-1];
+    if(to){ e.preventDefault(); activate(to,true); }
+  });
+}else{
+  tabsEl.className='tabs off';
+  wrapEl.className='wrap mode-all notabs';   // 只有一张表：不出 Tab 栏，表头贴顶
+}
+
+/* 初始 Tab：?row=N 最具体（它指明了要看哪一行），其次 ?tab=，都没有就第一张表 */
+(function(){
+  var r=Q.get('row'), want=Q.get('tab');
+  if(r){
+    var tr=document.getElementById('r'+r);
+    if(tr){
+      var sec=tr.closest?tr.closest('.sect'):null;
+      if(sec) want=sec.id.replace('sect-','');
+    }
+  }
+  var ks=LIVE.map(function(s){return s.k});
+  if(want!=='all'&&ks.indexOf(want)<0) want=(LIVE.length>1?ks[0]:'all');
+  activate(want);
+  if(r){var tr2=document.getElementById('r'+r);
+    if(tr2){tr2.classList.add('hl'); tr2.scrollIntoView({block:'center'});}}
+})();
+
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    navigator.clipboard.writeText(payloads[parseInt(btn.dataset.p,10)].t).then(function(){
+      btn.classList.add('done');btn.textContent='已复制';
+      setTimeout(function(){btn.classList.remove('done');btn.textContent='复制'},1500);
+    });
+  });
+});
+
+/* ---------- SELFTEST ----------
+   #probe 的字体宽度探针要等 document.fonts.ready 才准 —— 字体没就绪时量出来的宽度不可信。 */
+document.fonts.ready.then(function(){
+  var hit=function(t,w){for(var i=0;i<w.length;i++){if(String(t||'').indexOf(w[i])>=0)return w[i]}return null};
+  var R={}, c=function(k){if(!R[k])R[k]={ok:0,tot:0};return R[k]};
+  /* 四条通用：场次号 / 场次统计 / 用途说明 / 跨行指代 */
+  var clean=function(t){var x=String(t||'');
+    return !SCENE_ID_RE.test(x)&&!SCENE_COUNT_RE.test(x)&&!PURPOSE_RE.test(x)&&hit(x,CROSS_REF)===null};
+  var nonempty=function(t){return !!(t&&String(t).trim()&&!PLACEHOLDER_RE.test(t))};
+  /* 一份资产（或变体）的共用四项：brief 有没有 / 有没有下游词 / 有没有场次 / 有没有夹叙事 */
+  var take=function(bk,brief,scenes,extraClean){
+    var f=c(bk); f.tot++; if(nonempty(brief))f.ok++;
+    var l=c('lane'); l.tot++; if(!hit(brief,DOWNSTREAM))l.ok++;
+    if(scenes!==null){var s=c('scenes'); s.tot++; if((scenes||[]).length)s.ok++}
+    var nb=c('no-backstory'); nb.tot++; if(clean(brief)&&extraClean!==false)nb.ok++;
+  };
+  var charLane=function(){for(var i=0;i<arguments.length;i++){
+    var g=c('char-lane'); g.tot++;
+    if(hit(arguments[i],EMOTION)===null&&hit(arguments[i],TRAIT)===null)g.ok++;}};
+  /* 参照物：只算场景 —— 它的锚点是位置参照，是跨镜头对齐的唯一依据 */
+  var anchor=function(t){var g=c('anchor'); g.tot++; if(ANCHOR_RE.test(String(t||'')))g.ok++;};
+
+  var locIds={}, charIds={}, propIds={};
+  LOCS.forEach(function(a){
+    take('brief',a.brief,a.scenes,hit(a.brief,PEOPLE)===null);
+    anchor(a.brief);
+    (a.scenes||[]).forEach(function(x){locIds[x]=1});
+    (a.variants||[]).forEach(function(v){
+      take('var-brief',v.brief,v.scenes,
+        clean(v.name)&&hit(v.brief,PEOPLE)===null&&!RELOCATE_RE.test(String(v.brief||''))&&!!v.name);
+      (v.scenes||[]).forEach(function(x){locIds[x]=1});
+    });
+  });
+  CHARS.forEach(function(ch){
+    take('brief',ch.brief,null,true);      // 底档不登记场次
+    charLane(ch.brief);
+  });
+  FITS.forEach(function(f){
+    take('brief',f.brief,f.scenes,true);
+    charLane(f.brief);
+    (f.scenes||[]).forEach(function(x){charIds[x]=1});
+    (f.variants||[]).forEach(function(v){
+      take('var-brief',v.brief,v.scenes,clean(v.name)&&hit(v.brief,OUTFIT_SWAP)===null&&!!v.name);
+      charLane(v.brief,v.name);
+      (v.scenes||[]).forEach(function(x){charIds[x]=1});
+    });
+  });
+  PROPS.forEach(function(p){
+    take('brief',p.brief,p.scenes,true);
+    (p.scenes||[]).forEach(function(x){propIds[x]=1});
+    (p.variants||[]).forEach(function(v){
+      take('var-brief',v.brief,v.scenes,clean(v.name)&&hit(v.brief,PROP_SWAP)===null&&!!v.name);
+      (v.scenes||[]).forEach(function(x){propIds[x]=1});
+    });
+  });
+  /* refs 必须解析得到，且不能指到角色底档（底档只有脸，不知道该拿哪张参考图） */
+  var baseOnly={}; CHARS.forEach(function(ch){baseOnly[ch.tag]=1});
+  FITS.forEach(function(f){delete baseOnly[f.tag]});
+  PROPS.forEach(function(p){(p.refs||[]).forEach(function(r){
+    var g=c('refs'); g.tot++; if(NAMES[r]&&!baseOnly[r])g.ok++; })});
+
+  var covered=Object.keys(locIds).length;
+  var covOK = covered===Number(D.meta.sceneCount);
+  /* 交叉对账：角色/道具的场次必须都在场景表里 —— 有人有道具却没有地方 = 场景表漏了一场 */
+  var orphan=Object.keys(charIds).concat(Object.keys(propIds)).filter(function(x){return !locIds[x]});
+  var xOK = orphan.length===0;
+  var pr=document.getElementById('probe'), w1=pr.offsetWidth;
+  var fontOK = w1>50 && w1<160;
+
+  var nLV=0, nFV=0, nPV=0;
+  LOCS.forEach(function(a){nLV+=(a.variants||[]).length});
+  FITS.forEach(function(f){nFV+=(f.variants||[]).length});
+  PROPS.forEach(function(p){nPV+=(p.variants||[]).length});
+
+  var parts=['<b>SELFTEST</b>',
+    'loc='+LOCS.length+'+'+nLV+'v',
+    'char='+CHARS.length+'/'+FITS.length+'+'+nFV+'v',
+    'prop='+PROPS.length+'+'+nPV+'v',
+    'rows='+rowN], bad=false;
+  ['brief','var-brief','lane','no-backstory','char-lane','anchor','scenes','refs'].forEach(function(k){
+    var v=R[k]||{ok:0,tot:0}, good=(v.ok===v.tot);
+    if(!good)bad=true;
+    parts.push(k+'='+v.ok+'/'+v.tot+' '+(good?'OK':'<span class="x">FAIL</span>'));
+  });
+  if(!covOK)bad=true;
+  parts.push('coverage='+covered+'/'+D.meta.sceneCount+' '+(covOK?'OK':'<span class="x">FAIL</span>'));
+  if(!xOK)bad=true;
+  parts.push('xcover='+(xOK?'OK':'<span class="x">FAIL '+orphan.join(',')+'</span>'));
+  if(!fontOK)bad=true; parts.push('font='+(fontOK?'OK':'<span class="x">FAIL</span>'));
+  if(rowN===0)bad=true;
+  var el=document.getElementById('badge');
+  el.innerHTML=parts.join('  ');
+  if(bad)el.classList.add('fail');
+});
+</script></body></html>
