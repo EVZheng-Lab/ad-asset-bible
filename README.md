@@ -142,6 +142,8 @@ cd ad-asset-bible && node scripts/check-sync.mjs && node scripts/make-test.mjs
 
 ## 用法
 
+### 单独用 —— 只要一份资产盘点
+
 ```
 /ad-asset-bible [剧本路径]
 ```
@@ -150,6 +152,28 @@ cd ad-asset-bible && node scripts/check-sync.mjs && node scripts/make-test.mjs
 「有哪些角色、几套服装」「关键道具有哪些」「几个场景几个变体」「给 Lira 的场景描述」。
 
 角色与道具两张表是**可选的** —— 只做场景盘点仍然合法，空的那张表整节隐藏。
+
+### ★ 推荐：让 Agent 串起本 skill → Lira，一步拿到带提示词的表
+
+不用把每一份需求描述一条条复制去喂 Lira——让 Agent 自己调度两个 skill：
+
+1. **建一个项目文件夹，把剧本复制进去。**
+2. **打开任意 Agent 工具**（Claude Code / Cursor 等），把本 skill 和
+   [Lira](https://github.com/higgsfield-ai) 都装上（安装方式见上一节）。
+3. **在 Agent 工具里进入这个项目文件夹**，启用本 skill，然后一句话说清两段活：
+
+   > 把这个路径下的剧本拆解成资产盘点，然后把结果交给 Lira skill，
+   > 让 Lira 在产出的网页表格里加一列「Lira Prompt」，把它为每一份资产写的提示词填进这一列。
+
+最后拿到的是一张**需求描述与图像提示词并排**的表，照着一行行出图就行，
+中间不用人工搬运。
+
+> ⚠️ **「Lira Prompt」列是下游追加的，`build.mjs` 本身只产出四列**
+> （序号 | 资产 | 需求描述 | 变体，表头写死在 `templates/report-shell.html` 里）。
+> 所以**重跑一次 `build.mjs` 会重新生成整个页面、把这一列冲掉** ——
+> 补完提示词就别再重跑；要留存就把带提示词的那份另存一个文件名。
+> 反过来说，**盘点内容需要改的时候，是改 JSON 重跑 build.mjs、再重新补提示词**，
+> 不要直接手改 HTML（那会让页面与数据脱节，SELFTEST 横条也就失去意义）。
 
 ## 与姊妹 skill 的分工
 
