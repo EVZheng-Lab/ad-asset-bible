@@ -168,12 +168,12 @@ cd ad-asset-bible && node scripts/check-sync.mjs && node scripts/make-test.mjs
 最后拿到的是一张**需求描述与图像提示词并排**的表，照着一行行出图就行，
 中间不用人工搬运。
 
-> ⚠️ **「Lira Prompt」列是下游追加的，`build.mjs` 本身只产出四列**
-> （序号 | 资产 | 需求描述 | 变体，表头写死在 `templates/report-shell.html` 里）。
-> 所以**重跑一次 `build.mjs` 会重新生成整个页面、把这一列冲掉** ——
-> 补完提示词就别再重跑；要留存就把带提示词的那份另存一个文件名。
-> 反过来说，**盘点内容需要改的时候，是改 JSON 重跑 build.mjs、再重新补提示词**，
-> 不要直接手改 HTML（那会让页面与数据脱节，SELFTEST 横条也就失去意义）。
+> ⚠️ **「Lira Prompt」列不是 `build.mjs` 的产物。** 它只出四列（序号 | 资产 | 需求描述 | 变体，
+> 表头写死在 `templates/report-shell.html` 里），这一列是 Lira 在页面生成之后补上去的。
+> 所以**要返工就让 Agent 重跑整条链（盘点 → Lira），而不是只重跑 `build.mjs`** ——
+> 单跑前半段只会得到一张没有提示词列的新页面。
+> 同理，盘点内容要改是**改 JSON、重跑整条链**，不要直接手改 HTML
+> （手改会让页面与数据脱节，SELFTEST 横条也就失去意义）。
 
 ## 与姊妹 skill 的分工
 
