@@ -26,6 +26,11 @@
  * ★ 三类资产同住一份 JSON、同出一个页面，不是图省事，是因为
  *   `props[].refs` 要能被校验"你引用的那个 tag 确实存在" ——
  *   拆成三份数据源就没法拦「@char_xiaoming_xuesheng 写错一个字」。
+ *
+ * ★ `bios[]`（角色档案）也住这一份，理由同构但换了一条：它要被校验
+ *   **"每个底档有且只有一份档案"**。拆成独立 skill 就会有两套 @char_ 命名空间、
+ *   两份各自盘出来的角色名单，谁也拦不住"档案里多一个人、少一个人"。
+ *   但它跟前四类不是同一种东西 —— 前四类出图，档案不出图，见下方 BIO_LOOK 那节。
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -135,6 +140,101 @@ const TRAIT = ['性格','温柔','善良','内向','开朗','精明','狡猾','�
  *   措辞也不该被强行统一，故不查（见 references/how-to-write-prop.md）。
  * ★ 闸门只能查"有没有写"。**位置对不对查不了** —— 那靠三步推导和汇报里点出存疑。 */
 const ANCHOR_RE = /参照物/;
+/* ===== 角色档案（bios）专有 =====
+ * ★ 这一层跟前四类不是同一种东西：前四类是**出图资产**（官方说的 text + image 一对），
+ *   角色档案是**表演与声音的权威版本** —— 不出图，也不进图像提示词。
+ *   官方把角色拆成四种生命周期（Cinema Studio 3.5 项目书 + ACTING SKILL）：
+ *     ① 外观 descriptor      写一次、逐字复制进每条提示词      → characters / outfits
+ *     ② Voice prompt         写一次、原样贴进 audio 字段、永不改 → bios[].voice
+ *     ③ acting master profile 写一次、每场改写、**核不动**       → bios[] 八块
+ *     ④ 每个镜头的表演块      下游每镜现写                      → 不是我们的活
+ *   ③ 为什么必须是静态资产：没有它，下游每个镜头把"焦虑"各自翻成一串动作 ——
+ *   这次翻成看手表、下次翻成搓裤缝、再下次咬指甲，三次之间没有任何东西保证
+ *   这是同一个人的习惯。那就是 character drift 在**行为层**的翻版，
+ *   跟"每份服装各写一遍脸"是同一个病。
+ *
+ * ★★ 官方这四种少了一层，我们补第五种：**阶段状态**（bios[].arc[]）。
+ *   官方 §8.2 明令 `Never contradict the master`，它假设一份档案**全片有效** ——
+ *   压根没设计"一份档案里装着好几个时期、执行时自己判断该用哪一段"这件事。
+ *   于是有弧光的角色（开篇开朗、后半段沉默）交给下游只有一张卡：它没有任何依据
+ *   知道该往沉默演，只会照开朗一路演到底。**这跟 Lira 那个洞是同一种洞** ——
+ *   官方把"每场改写"这把锁造得极好，却没人负责告诉它"现在改写的是哪个时期的他"。
+ *   ★ 而这一层只能补到「事实」为止：剧本里发生了什么事、他因此成了什么样，
+ *   是可以查证的事实（副导演的活）；**"从第几场起按哪个状态演"是节奏判断（导演的活）**，
+ *   本 skill 不给 —— 那就是 ARC_SCHEDULE 这道闸门守的东西。
+ * ★ 八块因此是**开场状态**，不是"全片恒定"。没有弧光的角色 arc 留空，
+ *   开场状态就等于全片状态 —— 这条路径天然合法，不是缺项。
+ *
+ * ★ 双向墙。这个模块跟本 skill 最贵的一条纪律（角色 brief 里不许有性格/表情）
+ *   正面冲突，所以两个方向都要有闸门，缺一个就会互相污染：
+ *     bios[]             → 禁**服装与相貌**词（BIO_LOOK）。档案退化成外观复述就白建了；
+ *                          ACTING rule 6 原文 `No wardrobe. The profile must survive
+ *                          any costume change.`
+ *     characters/outfits → EMOTION / TRAIT 一个字不改、**绝不给豁免**。性格回流进 brief，
+ *                          出图就又是拿一个瞬间当全片的形象基准。
+ *
+ * ★ 第二道墙：**时间墙**（加 arc[] 之后才有的，同样两个方向都要闸门）：
+ *     八块    → 禁**跨时期词**（BIO_DRIFT）。八块写开场那一刻，"后来越来越塌"属于 arc[]。
+ *               ★ 但 posture 的"来历"是**前史、过去时**（rule 8 `Physique carries
+ *               biography`），永不变，所以 BIO_DRIFT 刻意不收"当年/早年/从前/落下的"。
+ *     arc[]   → 禁**场次分配句**（ARC_SCHEDULE）。"儿子被带走那天之后"是事实；
+ *               "从第 60 场起都按这个演"是导演的节奏判断，副导演替他决定就越界了。
+ *   判据一句话：**这句话是剧本里发生过的事，还是我替导演决定的节奏？**
+ */
+const BIO_LOOK = ['衣服','衣裳','外套','夹克','工装','制服','套装','裤子','裙子','鞋子','料子','布料',
+  '脸型','颧骨','鼻梁','发型','刘海','身高','体重'];
+/* 触发条件的标记词。ACTING rule 2 原文：
+   `Tics without triggers are decoration; tics with triggers are dramaturgy` ——
+   格式是 [tic] + [when/why]，中文的"when"靠这些词承载。
+   ★ 刻意**不收单字「时」**：它会被"同时""时常""时候"命中，闸门变成永真的假绿
+     （跟 check-sync 里 REQUIRED 裸写短字段名那个坑是同一种）。 */
+const BIO_TRIGGER = ['的时候','时候','一旦','每逢','每当','遇到','碰上','只要','听到','提到',
+  '被人','当着','面前','一见','每次','要是'];
+/* 官方定的块序，**不是我们的排版偏好** —— ACTING §6 原文 `block order is fixed`。
+   外壳渲染卡片、build 拼装成品段落都按这个顺序，两边必须一致。 */
+const BIO_BLOCKS = ['posture','engine','vocalProfile','tics','gait','crack','softeningTarget','eyeLife'];
+/* 唯一可省的一块。ACTING rule 5：`One — not two.` 给了就只能给一个，不给不算漏项。 */
+const BIO_OPTIONAL = ['softeningTarget'];
+/* Voice prompt 的四要素。项目书点名要锁的就是这四件（register / tempo / accent / manner），
+   ★ 拆成四个字段而不是一句话，是为了让"四要素齐"这条闸门查得动 ——
+     一整句话只能靠词表猜，而词表在这里必然是假绿。 */
+const VOICE_KEYS = ['register','tempo','accent','manner'];
+/* 步态必须取名。ACTING rule 3：`A memorable coined name inside quotes anchors the
+   biomechanics` —— 引号里一个自造名，再拆开重量/步幅/躯干手臂/头。
+   取名不是修辞：它把一串生物力学描述压成一个可复用的把手，
+   下游每场改写时照这个名字对齐，比每次重读一段描述稳。 */
+const GAIT_NAME_RE = /[「『“"'][^」』”"']{1,16}[」』”"']/;
+/* 拼进那段表演档案的字段（BIO_BLOCKS）合计上限。ACTING §6 的目标是
+   150–220 词一段流畅散文，中文按字折算。
+   ★ 这个数**不管** voice / superObjective / arc：
+     voice 单独贴 audio 字段，superObjective 是 canon 不进提示词，
+     arc 另有 BIO_ARC_MAX 那道更宽的总量闸门。 */
+const BIO_MAX = 400;
+/* 跨时期词（时间墙的八块那半）。八块写的是**开场状态**，出现这些词说明
+   把"后来的变化"写进了开场那一格 —— 那句话属于 arc[]。
+   ★ 刻意**不收**"当年/早年/从前/落下的"：posture 要写体态的**来历**，
+     那是前史、过去时、永不变（ACTING rule 8 `Physique carries biography`），
+     收进来就是误伤这个 skill 明确要求写的东西。 */
+const BIO_DRIFT = ['后来','后期','渐渐','越来越','到了最后','最终','一路'];
+/* 场次分配句（时间墙的 arc 那半）。arc 只记"发生了什么事、他因此成了什么样"，
+   而"从第几场起按哪个状态演"是**节奏判断**，属于导演：同一件事，导演可以让观众
+   提前预感到，也可以突然给一记重锤，两个导演给出的答案不一样。
+   ★ 这道闸门守的是分工，不是措辞 —— 副导演替导演把这个决定做了，导演就没得选了。 */
+const ARC_SCHEDULE = ['后半段','前半段','中段','片尾','结局时','之后每场','以后一直','起就一直'];
+/* 「第 N 场之后/起」这类写法词表抓不住，单出一条正则。
+   ★ 注意它拦的是**分配**（第 N 场之后按这个演），不是**定位**（那件事发生在第 N 场）——
+     后者是事实，有 arc[].scene 这个专门的结构化字段承载，不必也不该写进散文里。 */
+const ARC_SCHEDULE_RE = /第\s*\d+\s*[场幕集]\s*(之后|以后|起|开始)/;
+/* 单段 state 上限。只写"这个阶段变了什么"，没变的不重写 ——
+   写长了就是在把八块重抄一遍，那就回到"两个版本的身体"那个病上了。 */
+const ARC_MAX = 150;
+/* 阶段数上限。★ 这不是排版偏好：超过 4 段基本可以断定是在**按场次切**，
+   而场次是制作索引、不是戏剧索引。按转折切，一个角色的转折就那么几个。 */
+const ARC_STAGES_MAX = 4;
+/* 八块 + 所有 state 合计上限。页面按阶段复制时给的成品是"八块 + 累积到该阶段的
+   所有 state"，这个数管的是**那份成品**仍然一眼能读完。
+   BIO_MAX(400) 管八块自己，这一道管带上阶段之后的总量，两道并存不冲突。 */
+const BIO_ARC_MAX = 700;
 
 const errs = [];
 const E = (path, msg, fix) => errs.push({ path, msg, fix });
@@ -213,8 +313,61 @@ function checkCharLane(text, path) {
     '要表达"这人不好惹"，写看得见的东西（下颌绷着、衣领扣到最上一颗），不写"高冷"。');
 }
 
-/** 变体共用：tag 前缀 / name / scenes / brief 非空 */
-function checkVariant(v, VP, parentTag, hint) {
+/** 角色档案字段共用四条：占位符 / 字数兜底 / 下游词 / 服装与相貌词（双向墙的 bios 那半）
+ *  ★ 刻意**不套** checkNoBackstory。它拦 CROSS_REF 里的「全片」，
+ *    而 superObjective 的定义就是"贯穿全片想要什么" ——
+ *    角色档案是本 skill 里**唯一合法谈论全片**的一类字段（其余三类必须每格单独读懂，
+ *    因为那些字要喂给图像模型，而它没有全片的上下文；档案不喂图像模型）。
+ *    场次号那半也没必要：档案没有 scenes 这一列，账目压力不在这儿。
+ *  ★ arc[].state 也走这一条 —— 双向墙对阶段一视同仁：一个阶段的写法照样不许
+ *    退化成外观复述、照样不许伸手管机位。arc 独有的两道（单段上限、场次分配句）
+ *    在下面 bios 校验块里单独上。 */
+function checkBioField(text, path) {
+  const t = String(text ?? '');
+  checkPlaceholder(t, path);
+  if (t.length > BRIEF_MAX)
+    E(path, `${t.length} 字，超过 ${BRIEF_MAX}`,
+      '单块几句话就够。整段还另有合计上限 —— 档案是给下游每场改写用的底本，不是人物小传。');
+  const d = hit(t, DOWNSTREAM);
+  if (d) E(path, `出现下游词「${d}」`,
+    'ACTING rule 7 原话是 `No camera, no color` —— 机位与调色是 Lira / CINEDANCE 的活，' +
+    '档案只管表演、脸、声音、动作这四样。');
+  const l = hit(t, BIO_LOOK);
+  if (l) E(path, `出现服装/相貌词「${l}」`,
+    'ACTING rule 6 原话是 `No wardrobe. The profile must survive any costume change.` —— ' +
+    '这份档案换了衣服还得成立，所以衣服不进来；相貌在 characters[] 底档里，' +
+    '也不该在这儿重写一遍（重写一遍就是两个版本的脸，那正是要防的漂移）。\n' +
+    '    这一格要写的是**行为**：不写"他穿深色夹克"，写"手总插在口袋里，掏出来之前先在里头攥一下"。');
+}
+
+/** Voice prompt 四要素齐。★ 抽成函数是因为**两处要用**：bios[].voice（开场那一版）
+ *  与 arc[].voice（声音真的随弧光变了时那一版）。复制一遍必然对不齐，
+ *  跟这个 skill 反复讲的"两个版本的脸"是同一个病。
+ *  `what` 只用来把报错文案说清是哪一版，不影响校验本身。
+ *  ★ 报错用的中文标签存成**对象**、顺序从 VOICE_KEYS 取 —— 这里原来是一个手写的
+ *    pair 数组，两个坑：① check-sync 会把 ALL_CAPS 数组当成"两边必须同步的校验常量"
+ *    去比对外壳（外壳没有、也不该有，它不产报错文案）；② 手写的顺序跟 VOICE_KEYS
+ *    是两份真相，改一处漏一处就对不齐。对象 + 从 VOICE_KEYS 取序两个问题一起没了。 */
+const VOICE_LABEL = { register: '音区与音色', tempo: '速度与停顿',
+                      accent: '口音与出身', manner: '腔调与压力下怎么变' };
+function checkVoice(vc, path, what) {
+  if (vc === undefined || vc === null || typeof vc !== 'object' || Array.isArray(vc)) {
+    E(path, `${what} 缺失或不是对象`,
+      `voice 是四项齐全的对象：${VOICE_KEYS.join(' / ')}（音区与音色 / 速度与停顿 / ` +
+      '口音与出身 / 腔调与压力下怎么变）。项目书点名要锁的就是这四件，' +
+      '锁完原样贴进 audio 字段、**每次说话都贴**。');
+    return;
+  }
+  for (const k of VOICE_KEYS) {
+    const v = String(vc[k] ?? '').trim();
+    if (!v) E(`${path}.${k}`, `缺「${VOICE_LABEL[k]}」`,
+      '四件缺一件，下游生成时那一维就由模型自己填，同一个角色两条台词声音会对不上 —— ' +
+      '官方把声音漂移跟外观漂移一样列为要压力测试的项。');
+    else checkBioField(v, `${path}.${k}`);
+  }
+}
+
+/** 变体共用：tag 前缀 / name / scenes / brief 非空 */function checkVariant(v, VP, parentTag, hint) {
   if (!v.tag || !String(v.tag).startsWith(parentTag + '_'))
     E(`${VP}.tag`, `变体标签「${v.tag ?? ''}」应以「${parentTag}_」开头`, '变体挂在本资产之下。');
   if (!v.name) E(`${VP}.name`, '缺变体名', hint);
@@ -245,6 +398,7 @@ const LOCS  = Array.isArray(D.assets) ? D.assets : [];
 const CHARS = Array.isArray(D.characters) ? D.characters : [];
 const FITS  = Array.isArray(D.outfits) ? D.outfits : [];
 const PROPS = Array.isArray(D.props) ? D.props : [];
+const BIOS  = Array.isArray(D.bios) ? D.bios : [];
 
 /* ===== meta ===== */
 const meta = D.meta ?? {};
@@ -257,7 +411,7 @@ if (!LOCS.length)
 /* 角色/道具是可选的（纯场景盘点仍然合法）；但数组非空就必须报计数，好跟实际对账。
    ★ 变体计数只对**场景**做双记账（那是最容易写错的地方 —— 换空间那个坑）；
      角色/道具的状态变体默认没有、数量个位数，双记账的麻烦不抵收益，由 badge 直接算。 */
-for (const [arr, key, label] of [[CHARS, 'charCount', '角色底档'], [FITS, 'outfitCount', '服装资产'], [PROPS, 'propCount', '关键道具']])
+for (const [arr, key, label] of [[CHARS, 'charCount', '角色底档'], [FITS, 'outfitCount', '服装资产'], [PROPS, 'propCount', '关键道具'], [BIOS, 'bioCount', '角色档案']])
   if (arr.length && (meta[key] === undefined || meta[key] === ''))
     E(`meta.${key}`, `缺失 —— 有 ${arr.length} 份${label}却没报数`, '写成实际数，好跟表格对账。');
 
@@ -531,7 +685,228 @@ for (const [i, p] of PROPS.entries()) {
   }
 }
 
-/* ===== 五、refs 解析 =====
+/* ===== 五、角色档案（表演与声音的权威版本，不出图） =====
+ * 每个底档一份，一一对应。档案**不另起 tag** —— 它不是出图资产，底档的 tag 就是它的身份。
+ * 为什么"一一对应"值得单独上闸门：档案是"这个人怎么演"的唯一权威版本，
+ * 两份必然对不齐，一份都没有则下游每镜自己现编 —— 两种都是行为层的漂移。 */
+const BIO_LABEL = {
+  posture: '体态与来历', engine: '心理引擎', vocalProfile: '说话在戏里怎么变',
+  tics: '习惯动作与触发条件', gait: '步态', crack: '面具裂开的条件',
+  softeningTarget: '唯一让他软下来的那个', eyeLife: '眼睛怎么活',
+};
+const BIO_FIX = {
+  posture: 'ACTING §6 块 2 + rule 8：`Physique carries biography` —— 写体态**和它的来历**' +
+    '（"两肩常年紧绷，站着时重心压在整只脚上 —— 早年扛货落下的"）。' +
+    '★ 不重写脸和体格，那两样在 characters[] 底档里，拼装成品段落时会自动落到这一块前面。',
+  engine: 'ACTING §6 块 3：一句话说清驱动这具身体的内在引擎（"几十年的等 —— 等客、等钟响、' +
+    '等事情发作 —— 把忍耐练成了他的武器"）。它要能解释上一块那个体态是怎么来的。',
+  vocalProfile: 'ACTING §6 块 4：说话在**戏里**怎么变 —— 速度怎么移、什么时候破音、' +
+    '越急是越快还是越慢。跟 voice 那四项分工不同：voice 锁"声音本身长什么样"，' +
+    '这一块写"它在戏里怎么动"，两边必须互相吻合（`Both must agree with each other`）。',
+  tics: 'ACTING §6 块 5：招牌小动作 / 压力下的小动作 / 掩饰行为（他做什么来藏住感受）/ ' +
+    '那张脸的面具。★ 每一条都要带触发条件，见 tics 那道闸门的说明。',
+  gait: 'ACTING §6 块 6 + rule 3：步态要**取名**，再拆重量/步幅/躯干手臂/头。',
+  crack: 'ACTING §6 块 7 + rule 4：`Every profile carries at least one "However, when X — ..." clause.` ' +
+    '先有面具，再有让它塌掉的精确条件。',
+  eyeLife: 'ACTING §7，原文 `mandatory in every profile`：扫视与注视目标、眨眼的频率与质量' +
+    '（紧张时成串快眨、控场时慢而有意）、眼里要有光、**眼睛先于头到位**。' +
+    '官方把 dead eyes 列为 AI 表演的头号破功点。',
+};
+const bioOf = new Map();   // 底档 tag → 这份档案的路径，用来查一一对应
+for (const [i, b] of BIOS.entries()) {
+  const P = `bios[${i}]`;
+
+  if (!b.char) {
+    E(`${P}.char`, '没说这份档案属于哪个角色',
+      'char 填角色底档的 tag，例 "@char_along"。档案不另起 tag —— ' +
+      '它不出图、不是资产，底档的 tag 就是它的身份。');
+  } else if (!charTags.has(b.char)) {
+    E(`${P}.char`, `引用的角色底档「${b.char}」不存在`,
+      'characters[] 里没有这个 tag —— 要么拼错了，要么底档没建。');
+  } else if (bioOf.has(b.char)) {
+    E(`${P}.char`, `「${b.char}」已经有一份档案了（${bioOf.get(b.char)}）`,
+      '一个角色只有一份表演档案 —— 它是"这个人怎么演"的**唯一权威版本**。' +
+      '两份必然对不齐，那就是 character drift 在行为层的翻版。把两份并成一份。');
+  } else {
+    bioOf.set(b.char, P);
+  }
+
+  /* 八个块：必填的不许空，写了的都过双向墙 + 时间墙
+     ★ 八块写的是**开场状态**（第一次出场那会儿他是什么样），不是"全片恒定"。 */
+  let profileLen = 0;
+  for (const k of BIO_BLOCKS) {
+    const v = String(b[k] ?? '').trim();
+    profileLen += v.length;
+    if (!v) {
+      if (!BIO_OPTIONAL.includes(k)) E(`${P}.${k}`, `缺「${BIO_LABEL[k]}」`, BIO_FIX[k] ?? '');
+      continue;
+    }
+    checkBioField(v, `${P}.${k}`);
+    /* 时间墙的八块那半：跨时期的话属于 arc[]，不属于开场那一格 */
+    const dr = hit(v, BIO_DRIFT);
+    if (dr) E(`${P}.${k}`, `出现跨时期词「${dr}」`,
+      '八块写的是**开场状态** —— 这个人第一次出场那会儿是什么样。' +
+      `「${dr}」说的是故事期间发生的漂移，那句话属于 arc[]（后来变了什么）。\n` +
+      '    ✗「两肩往前收着，后来越来越塌」—— 两个时期挤在一格里，下游没法知道现在该演哪个\n' +
+      '    ✓ 八块只留「两肩往前收着」，把「越往后肩塌得更低」挪进 arc[].state\n' +
+      '    ★ 例外：`posture` 里写体态的**来历**是对的（"早年扛货落下的"）—— ' +
+      '那是前史、过去时、永不变，官方 rule 8 `Physique carries biography` 明确要求写。' +
+      '所以词表刻意不收"当年/早年/从前/落下的"。');
+  }
+  if (profileLen > BIO_MAX)
+    E(P, `表演档案八块合计 ${profileLen} 字，超过 ${BIO_MAX}`,
+      'ACTING §6 的目标是一段 150–220 词的流畅散文，中文按字折算。' +
+      '写成人物小传就不是"每场改写的底本"了 —— 下游没人会通读一千字再去写一个镜头。' +
+      '（voice / superObjective / arc 不计入这个数，arc 另有一道总量闸门。）');
+
+  /* 闸门②：每个习惯动作必须带触发条件 */
+  if (String(b.tics ?? '').trim() && !hit(b.tics, BIO_TRIGGER))
+    E(`${P}.tics`, '习惯动作没有触发条件',
+      'ACTING rule 2 原话：`Tics without triggers are decoration; tics with triggers are ' +
+      'dramaturgy` —— 格式是「什么动作 + 什么时候/为什么做」。\n' +
+      '    ✗「他会转手里的硬币」—— 装饰。下游不知道什么时候该让他转，于是每镜自己决定\n' +
+      '    ✓「掂量一件事的时候，那枚旧硬币在指节上来回走」—— 有条件，下游每场都对得上\n' +
+      '    这条是词表兜底，只认得几个常见的触发说法 —— ' +
+      '**没报错不等于每一条都带了触发条件**，写完自己数一遍。');
+
+  /* 闸门③：步态必须取名 */
+  if (String(b.gait ?? '').trim() && !GAIT_NAME_RE.test(String(b.gait)))
+    E(`${P}.gait`, '步态没取名',
+      'ACTING rule 3 要求给步态起一个**引号包住的自造名**，再拆开重量/步幅/躯干手臂/头。\n' +
+      '    ✗「走得慢，脚步沉」\n' +
+      '    ✓「一种「老拳手的走法」：步子短而省力，两肩齐平，手松着垂在身侧，从不赶」\n' +
+      '    取名不是修辞 —— 它把一串生物力学描述压成一个可复用的把手，' +
+      '下游每场改写时照这个名字对齐，比每次重读一段描述稳。');
+
+  /* 闸门④：面具要有裂缝，裂缝要有条件 */
+  if (String(b.crack ?? '').trim() && !hit(b.crack, BIO_TRIGGER))
+    E(`${P}.crack`, '面具裂开的条件没写出来',
+      'ACTING rule 4 要求每份档案至少一条 `However, when X — …`：先有面具，' +
+      '再有让它塌掉的**精确条件**。\n' +
+      '    ✗「偶尔会露出真情绪」—— 没有条件，等于没有\n' +
+      '    ✓「有人在他面前抬手，那张困倦的面具半秒就没了：下颌一沉，两手抬到半空，' +
+      '脚下自己找回老架势 —— 随即他察觉，别扭地收回去」\n' +
+      '    官方把这条叫 profile 里最有电影感的装置：一个人同时演两个真相，' +
+      '这是活人跟木偶的分界。');
+
+  /* 闸门⑤：Voice prompt 四要素齐。项目书点名要锁的就是这四件
+     ★ 这是**开场那一版**声音。声音真的随弧光变了，在 arc[].voice 里另给一版。 */
+  checkVoice(b.voice, `${P}.voice`, 'voice');
+
+  /* canon：贯穿目标必填 */
+  const so = String(b.superObjective ?? '').trim();
+  if (!so)
+    E(`${P}.superObjective`, '缺「贯穿全片想要什么」',
+      'ACTING §2.1：`Behind the scene objective sits a super-objective — what the character ' +
+      'wants across the whole story`。下游每场的目标都是它的一步，没有它，' +
+      '每场的目标各自成立、连不成一条线。写成**朝着某个人的动词**（"让父亲承认他没看错人"），' +
+      '不写状态（"想被认可"）—— 状态演不出来。');
+  else checkBioField(so, `${P}.superObjective`);
+
+  /* ===== 闸门⑥：arc[] —— 后来变了什么（可选；没有弧光的角色留空是合法的） =====
+   * 这一层补的是官方四种生命周期少掉的那一种。它只记**事实**：
+   * 剧本里发生了什么事、他因此成了什么样。
+   * ★ "从第几场起按哪个状态演"是**导演的节奏判断**，不在这儿 —— ARC_SCHEDULE 守着这条。 */
+  const arc = b.arc;
+  if (arc !== undefined && arc !== null) {
+    if (!Array.isArray(arc)) {
+      E(`${P}.arc`, 'arc 不是数组',
+        'arc 是按剧本时间排的一串阶段，每段一个对象：after（哪件事之后）/ ' +
+        'scene（可选，那件事在哪一场）/ state（这个阶段变了什么）/ voice（可选，声音变了才给）。');
+    } else {
+      if (arc.length > ARC_STAGES_MAX)
+        E(`${P}.arc`, `${arc.length} 个阶段，超过 ${ARC_STAGES_MAX}`,
+          '★ 这不是排版偏好：超过 ' + ARC_STAGES_MAX + ' 段基本可以断定是在**按场次切**，' +
+          '而场次是制作索引、不是戏剧索引 —— 剪辑一调序就失效。按转折切，' +
+          '一个角色真正的转折就那么几个（"儿子被带走"、"第一次当众顶回去"）。\n' +
+          '    并掉那些其实是同一个转折的相邻段。');
+      let arcLen = 0, prevScene = null;
+      for (const [j, s] of arc.entries()) {
+        const SP = `${P}.arc[${j}]`;
+        if (s === null || typeof s !== 'object' || Array.isArray(s)) {
+          E(SP, '这个阶段不是对象', ' 每段是 { after, scene?, state, voice? }。');
+          continue;
+        }
+        /* ⑥-1 触发的那件事必填 —— 阶段要锚在事件上，不锚在场次上 */
+        const af = String(s.after ?? '').trim();
+        if (!af)
+          E(`${SP}.after`, '没说这个阶段是从哪件事之后开始的',
+            '弧光是被事件推动的，所以阶段要锚在**事件**上：「儿子被带走那天之后」。\n' +
+            '    锚事件而不锚场次，是因为场次是制作索引 —— 剪辑调了序，' +
+            '"第 47 场之后"就失效了，而"儿子被带走之后"永远成立。\n' +
+            '    ★ 那件事发生在哪一场是**事实**，写进 scene 那个字段（可选），不要写进散文里。');
+        else checkBioField(af, `${SP}.after`);
+        /* ⑥-2 这个阶段变了什么必填，且只写变了的 */
+        const st = String(s.state ?? '').trim();
+        if (!st) {
+          E(`${SP}.state`, '缺「这个阶段变了什么」',
+            '一段话，**只写变了的那几样**：「肩背仍是含的，但下巴抬起来了；急了不再变快，' +
+            '改成一字一顿地慢」。\n' +
+            '    没变的不要重写 —— 页面按阶段复制时会自动带上八块，' +
+            '在这儿重抄一遍就是两个版本的身体，那正是这个 skill 从头到尾在防的事。');
+        } else {
+          arcLen += st.length;
+          checkBioField(st, `${SP}.state`);
+          if (st.length > ARC_MAX)
+            E(`${SP}.state`, `${st.length} 字，超过 ${ARC_MAX}`,
+              '这一段只承担"变了什么"，没变的由八块承担。写到 ' + ARC_MAX +
+              '字以上，基本是在把八块重抄一遍。');
+        }
+        /* ⑥-3 时间墙的 arc 那半：不许替导演决定从第几场起按这个演 */
+        for (const [txt, lab] of [[af, 'after'], [st, 'state']]) {
+          if (!txt) continue;
+          const sc = hit(txt, ARC_SCHEDULE) ||
+            (ARC_SCHEDULE_RE.test(txt) ? txt.match(ARC_SCHEDULE_RE)[0] : null);
+          if (sc) E(`${SP}.${lab}`, `出现场次分配「${sc}」`,
+            '这一层只记**事实**：剧本里发生了什么事、他因此成了什么样。\n' +
+            '    而「从第几场起按这个状态演」是**节奏判断，属于导演** —— 同一件事，' +
+            '导演可以让观众提前预感到，也可以突然给一记重锤，两个导演给出的答案不一样。' +
+            '副导演替他把这个决定做了，导演就没得选了。\n' +
+            '    ✗「从第 60 场起都按这个演」／「后半段她就是这个样子」\n' +
+            '    ✓「儿子被带走那天之后」—— 说事件，不说从哪一场开始生效\n' +
+            '    ★ 那件事**发生**在第几场是事实，写进 scene 字段；' +
+            '那个状态**从**第几场起用是判断，不写。');
+        }
+        /* ⑥-4 那件事发生在哪一场（可选）—— 事实定位，要能在场景表里查到 */
+        if (s.scene !== undefined && s.scene !== null && String(s.scene).trim()) {
+          const scn = String(s.scene).trim();
+          if (!locCovered.has(scn))
+            E(`${SP}.scene`, `「${scn}」在场景表里没有出现过`,
+              '这一场没有登记在任何场景资产（或它的变体）的 scenes 里 —— ' +
+              '要么场次号写错了，要么场景表漏了一场。\n' +
+              '    跟"角色/道具的场次必须都在场景表里出现过"是同一条交叉对账：' +
+              '有事发生却没有地方，说明盘点有洞。');
+          /* ⑥-5 按剧本时间排 —— 页面按这个顺序累积，倒序会把成品拼反 */
+          if (prevScene !== null && scn < prevScene)
+            E(`${SP}.scene`, `「${scn}」排在「${prevScene}」后面，不是按剧本时间顺序`,
+              'arc 要按**剧本时间**从早到晚排。页面按阶段复制时是顺序累积的' +
+              '（第三个阶段 = 八块 + 第一段 + 第二段 + 第三段），排反了成品就拼反了。\n' +
+              '    调换这两段的位置。');
+          prevScene = scn;
+        }
+        /* ⑥-6 这个阶段的声音（可选）—— 给了就四要素必须齐 */
+        if (s.voice !== undefined && s.voice !== null)
+          checkVoice(s.voice, `${SP}.voice`, '这个阶段的 voice');
+      }
+      /* ⑥-7 阶段成品总量：八块 + 所有 state */
+      if (profileLen + arcLen > BIO_ARC_MAX)
+        E(`${P}.arc`, `八块 + 所有阶段合计 ${profileLen + arcLen} 字，超过 ${BIO_ARC_MAX}`,
+          '页面按阶段复制时给的成品是"八块 + 累积到该阶段的所有 state"，' +
+          '这个数管的是**那份成品**仍然一眼能读完。\n' +
+          '    超了通常是某一段在重写没变的东西 —— 每段只留"跟上一个阶段比，哪里不一样了"。');
+    }
+  }
+}
+/* 一一对应的另一半：建了底档就必须有档案 */
+for (const [i, c] of CHARS.entries())
+  if (c.tag && charTags.has(c.tag) && !bioOf.has(c.tag))
+    E(`characters[${i}]`, `底档「${c.tag}」没有角色档案`,
+      '建了底档的角色一律要有一份档案 —— 底档只说这人长什么样，' +
+      '不说他怎么演、说话什么声。缺了这份，下游每个镜头把情绪各自翻成一串动作，' +
+      '三个镜头翻出三套习惯，那是 character drift 在行为层的翻版。\n' +
+      `    在 bios[] 里补一条，char 指向 ${c.tag}。`);
+
+/* ===== 六、refs 解析 =====
  * ★ refs 必须指到**服装级或场景级**，不能指到角色底档 ——
  *   照片上的小明穿的是哪套？指 @char_xiaoming，下游不知道拿哪张参考图。 */
 for (const { ref, path } of refUses) {
@@ -564,6 +939,8 @@ if (meta.outfitCount !== undefined && Number(meta.outfitCount) !== FITS.length)
   E('meta.outfitCount', `写的是 ${meta.outfitCount}，实际 ${FITS.length}`, '改成实际数（服装资产数）。');
 if (meta.propCount !== undefined && Number(meta.propCount) !== PROPS.length)
   E('meta.propCount', `写的是 ${meta.propCount}，实际 ${PROPS.length}`, '改成实际数（关键道具数）。');
+if (meta.bioCount !== undefined && Number(meta.bioCount) !== BIOS.length)
+  E('meta.bioCount', `写的是 ${meta.bioCount}，实际 ${BIOS.length}`, '改成实际数（角色档案数，应与角色底档数相等）。');
 
 if (meta.sceneCount !== undefined && locCovered.size !== Number(meta.sceneCount))
   E('meta.sceneCount', `声明 ${meta.sceneCount} 场，实际覆盖 ${locCovered.size} 个场次号（场景表）`,
@@ -584,7 +961,7 @@ if (meta.sceneCount !== undefined && locCovered.size !== Number(meta.sceneCount)
 if (!existsSync(SHELL)) { console.error(`外壳不见了: ${SHELL}`); process.exit(2); }
 const shell = readFileSync(SHELL, 'utf8');
 for (const need of ['{{DATA_JSON}}', '{{TITLE}}', 'id="badge"', 'id="tabs"', 'role="tablist"',
-                    'id="tb"', 'id="tbc"', 'id="tbp"', 'SELFTEST'])
+                    'id="tb"', 'id="tbc"', 'id="tbp"', 'id="tbb"', 'SELFTEST'])
   if (!shell.includes(need)) E('templates/report-shell.html', `外壳缺少 ${need}`, '恢复它，不要手补。');
 
 /* ===== 出结果 ===== */
@@ -614,6 +991,12 @@ writeFileSync(outFile, html, 'utf8');
 console.log(`✓ 已生成：${outFile}`);
 console.log(`  场景 ${LOCS.length} + ${locVarN} 变体 · 角色 ${CHARS.length} 底档 / ${FITS.length} 套服装 + ${fitVarN} 状态 · 道具 ${PROPS.length} + ${propVarN} 状态`);
 console.log(`  场景表覆盖场次 ${locCovered.size} · 角色表 ${charCovered.size} · 道具表 ${propCovered.size}`);
+if (BIOS.length) {
+  const withArc = BIOS.filter(b => Array.isArray(b.arc) && b.arc.length).length;
+  console.log(`  角色档案 ${BIOS.length} 份（八块 = 开场状态；voice 原样贴 audio 字段、每次说话都贴）`);
+  console.log(`  其中 ${withArc} 份写了阶段变化 —— 页面按阶段给复制按钮，` +
+    `**从第几场起用哪个阶段是导演的判断，本 skill 不给**`);
+}
 if (refUses.length) console.log(`  ⚑ ${refUses.length} 处间接引用 —— 这些道具必须走参考生图，被引用的图要先出`);
 console.log(`\n自检截图用（直接 copy 这行）：`);
 console.log(`P="file:///${outFile.replace(/\\/g, '/')}"`);

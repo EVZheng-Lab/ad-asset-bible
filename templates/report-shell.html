@@ -4,7 +4,7 @@
 <!--
 ================================================================================
   ad-asset-bible 静态外壳 —— 一个字都不要改。
-  数据由 scripts/build.mjs 注入到底部 id="data" 的脚本块，三张表在客户端渲染。
+  数据由 scripts/build.mjs 注入到底部 id="data" 的脚本块，三张表 + 角色档案卡片在客户端渲染。
   （本注释里刻意不写占位符字面量：build.mjs 用 replace 只换第一处，
     注释里再出现一次会把数据注进注释、真正的槽位反而空着。踩过。）
 
@@ -26,6 +26,7 @@
       "charCount":     4,   // 角色底档数   （characters 非空时必填）
       "outfitCount":  12,   // 服装资产数   （outfits    非空时必填）
       "propCount":     6,   // 关键道具数   （props      非空时必填）
+      "bioCount":      4,   // 角色档案数   （bios       非空时必填；应与 charCount 相等）
       "worldview": "一两句话：年代/阶层/风格的结论（第 0 步的产出，必填）。
                     只写结论本身，依据留在各资产的 note 里；显示在页面顶部剧本路径正下方。"
     },
@@ -97,11 +98,68 @@
         { "tag":"@prop_yupei_broken", "name":"碎裂", "scenes":["48-1"],
           "brief":"改成断成两截，断口新崭、边缘发白" }
       ]
+    }],
+
+    // ── 五、角色档案（可选，但**建了底档就必须有**）：表演与声音的权威版本 ────
+    //    ★ 它跟前四类不是同一种东西：前四类是出图资产（text + image 一对），
+    //      档案不出图、也不进图像提示词。官方把角色拆成四种生命周期：
+    //        ① 外观 descriptor      写一次、逐字复制进每条提示词 → characters/outfits
+    //        ② Voice prompt         写一次、原样贴 audio         → bios[].voice
+    //        ③ acting master profile 写一次、每场改写、核不动     → bios[] 八块
+    //        ④ 每镜头的表演块        下游每镜现写                → 不是我们的活
+    //    ★★ 官方这四种少了一层，我们补第五种：**阶段状态**（bios[].arc[]）。
+    //      官方 §8.2 明令 `Never contradict the master`，它假设一份档案**全片有效** ——
+    //      压根没设计"一份档案里装着好几个时期"。于是有弧光的角色（开篇开朗、
+    //      后半段沉默）交给下游只有一张卡，它只会照开朗一路演到底。
+    //      ★ 这一层只补到**事实**：发生了什么事、他因此成了什么样。
+    //      "从第几场起按哪个状态演"是节奏判断，**属于导演**，本 skill 不给。
+    //    ★ 因此八块是**开场状态**，不是"全片恒定"。没有弧光的角色 arc 留空，
+    //      开场状态就等于全片状态 —— 合法，不是缺项
+    //    ★ 不另起 tag —— char 指向底档，底档的 tag 就是它的身份
+    //    ★ posture 之前那一块（年龄/体格/身形）由底档承担，不在这儿重写
+    //    ★ 八块的**顺序是官方定的**（ACTING §6 `block order is fixed`），别重排
+    "bios": [{
+      "char":         "@char_xiaoming",   // 指向 characters[] 里的底档，一一对应
+      "posture":      "体态**和它的来历**：两肩常年紧绷，站着时重心压在整只脚上——早年扛货落下的",
+      "engine":       "一句话说清驱动这具身体的内在引擎，它要能解释上面那个体态是怎么来的",
+      "vocalProfile": "说话在**戏里**怎么变（越要紧越慢越轻）。跟 voice 分工：voice 锁声音本身，
+                       这一块写它在戏里怎么动，两边必须互相吻合",
+      "tics":         "招牌小动作 / 压力下的小动作 / 掩饰行为 / 那张脸的面具。
+                       ★ 每一条都要带触发条件——「掂量一件事的时候，硬币在指节上来回走」，
+                       不是「他会转硬币」（没条件的叫装饰，不叫戏剧）",
+      "gait":         "步态要**取名**：一种「老拳手的走法」，步子短而省力，两肩齐平，从不赶",
+      "crack":        "至少一条「……的时候，面具塌掉」：先有面具，再有让它塌掉的精确条件",
+      "softeningTarget": "可选，而且**只能一个**：唯一让这张脸真正软下来的人或东西",
+      "eyeLife":      "必填（官方原文 mandatory in every profile）：扫视与注视目标、
+                       眨眼的频率与质量、眼里要有光、**眼睛先于头到位**",
+      "voice": {                          // Voice prompt 的四要素，项目书点名要锁的就是这四件
+        "register": "音区与音色",         // 拆成四项而不是一句话，是为了让"四要素齐"查得动
+        "tempo":    "速度与停顿",
+        "accent":   "口音与出身",
+        "manner":   "腔调，以及压力下怎么变"
+      },
+      "superObjective": "贯穿全片想要什么。写成**朝着某个人的动词**（让父亲承认他没看错人），
+                         不写状态（想被认可）——状态演不出来",
+      "arc": [{                           // 可选：后来变了什么。没有弧光的角色整个留空
+        "after": "触发这个阶段的**那件事**：儿子被带走那天之后。
+                  ★ 锚事件，不锚场次 —— 剪辑一调序，「第 47 场之后」就失效了",
+        "scene": "S05",                   // 可选：那件事**发生**在哪一场（事实定位，
+                                          // 要能在场景表里查到）。不是"从这一场起按这个演"
+        "state": "一段话，**只写变了的那几样**：肩背仍是含的，但下巴抬起来了；
+                  急了不再变快，改成一字一顿地慢。
+                  ★ 没变的不要重写 —— 页面按阶段复制时会自动带上八块",
+        "voice": {                        // 可选：声音**真的**随弧光变了才给，四要素照样要齐
+          "register": "音区压低半档",     // ★ accent 原则上不该变（口音是出身）
+          "tempo":    "更慢，句间留更长",
+          "accent":   "口音与出身（照旧）",
+          "manner":   "不再往轻里收，平着说到底"
+        }
+      }]
     }]
   }
 
   URL 参数:
-    ?tab=loc|char|prop|all   切到哪张表。all = 三张表同时铺开
+    ?tab=loc|char|prop|bio|all   切到哪张表。all = 全部同时铺开
                              （★ 无头截图自检必须用 all，否则只截得到当前那一张；
                                浏览器 Ctrl+F 也搜不到隐藏 Tab 里的文字）
     ?row=N                   高亮并滚到第 N 行（会自动切到该行所在的那张表）
@@ -178,7 +236,7 @@
   h2{font-size:15px;margin:22px 0 10px;padding-left:9px;border-left:3px solid var(--accent);
     font-weight:600;letter-spacing:.02em}
   h2 em{font-style:normal;color:var(--faint);font-size:12.5px;font-weight:400;margin-left:10px}
-  /* Tab 模式下 Tab 标签已经说了表名，h2 就是重复；全部展开模式才需要它分隔三张表 */
+  /* Tab 模式下 Tab 标签已经说了表名，h2 就是重复；全部展开模式才需要它分隔四块 */
   .mode-tabs .sect h2{display:none}
 
   .tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
@@ -243,6 +301,52 @@
     border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-family:inherit;margin-left:8px}
   .copy:hover{border-color:var(--accent)}
   .copy.done{color:var(--ok);border-color:var(--ok)}
+
+  /* ---------- 角色档案：卡片，不是表格 ----------
+     ★ 刻意不做成第四张「资产 | 需求描述 | 变体」同构表 —— 档案不是出图资产：
+       它没有变体（表演不分版本，它就是那个唯一权威版本）、不登记场次
+       （每场都用它，登记等于把全片场次抄一遍）。硬塞进四列表会逼出两个空列。
+     一块一行，块序是官方定的（ACTING §6 block order is fixed），别重排。 */
+  .bios{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(420px,1fr))}
+  .bio{border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:14px 16px}
+  .bio .bh{border-bottom:1px solid var(--border);padding-bottom:9px;margin-bottom:10px}
+  .bio .bh .tag{display:block}
+  .bio .bh .aname{display:inline}
+  /* 八块是**开场状态**，不是"全片恒定" —— 卡片上必须标出来，
+     否则读者会拿它当全片唯一那一版（这正是加 arc 之前的那个错）。 */
+  .bio .bstage{color:var(--faint);font-size:11.5px;margin:-4px 0 9px;letter-spacing:.02em}
+  .bio dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13.5px}
+  .bio dt{color:var(--dim);font-size:12px;white-space:nowrap;padding-top:3px}
+  .bio dd{margin:0;line-height:1.75}
+  /* 声音是另一种生命周期的东西（原样贴 audio 字段、每次说话都贴），
+     跟表演那八块用底色区分开，别让人以为它也是"每场改写"的。 */
+  .bio .voice{margin-top:11px;border:1px dashed var(--ref);border-radius:5px;
+    padding:8px 10px;background:rgba(125,211,252,.05);font-size:13px;line-height:1.7;color:var(--ref)}
+  .bio .voice b{color:#e0f2fe}
+  .bio .voice .vk{color:#bae6fd;opacity:.8}
+  /* ---------- 后来变了什么（arc）----------
+     ★ 视觉上做成时间线，跟上面八块**明确分开** —— 它是另一个时期的写法，
+       不是八块的补充说明。每段自带一个"复制到这个阶段"的按钮，
+       因为**选哪个阶段是导演的判断**，页面只负责把每个阶段的成品算好。 */
+  .bio .arc{margin-top:11px;border-top:1px solid var(--border);padding-top:10px}
+  .bio .arc>b{color:var(--accent);font-weight:600;font-size:12.5px}
+  .bio .arcnote{display:block;color:var(--faint);font-size:11px;line-height:1.6;margin:3px 0 8px}
+  .bio .arcs{position:relative;border-left:2px solid var(--border);padding:0 0 10px 11px;margin-left:3px}
+  .bio .arcs:last-child{padding-bottom:0}
+  .bio .arcs::before{content:'';position:absolute;left:-5px;top:5px;width:8px;height:8px;
+    border-radius:50%;background:var(--accent)}
+  .bio .arch{font-size:12px;line-height:1.9;margin-bottom:2px}
+  .bio .arcev{color:var(--dim)}
+  .bio .arcsc{color:var(--faint);margin-left:7px;font-size:11px}
+  .bio .arcvo{color:var(--ref);margin-left:7px;font-size:11px}
+  .bio .arcst{font-size:13.5px;line-height:1.75}
+  /* canon（贯穿目标）不进那段表演档案 —— 它不喂提示词，
+     是给下游推每场目标用的依据，故单独一块。 */
+  .bio .canon{margin-top:11px;border-left:3px solid var(--accent);padding-left:9px;
+    font-size:13px;line-height:1.7;color:var(--dim)}
+  .bio .canon b{color:var(--accent);font-weight:600;margin-right:6px}
+  .bio .miss{color:var(--bad);font-style:italic}
+
   .howto{color:var(--faint);font-size:12px;margin-top:22px;line-height:1.75}
   .howto b{color:var(--dim)}
   #probe{position:absolute;left:-9999px;top:-9999px;font-size:100px;white-space:nowrap}
@@ -256,10 +360,14 @@
 
   <div class="tabs" id="tabs" role="tablist" aria-label="资产类别"></div>
   <div class="tabnote">
-    <b>三张表结构相同</b>：序号 | 资产 | 需求描述 | 变体。变体的判据也是同一句 ——
+    <b>前三张表结构相同</b>：序号 | 资产 | 需求描述 | 变体。变体的判据也是同一句 ——
     <b>主资产那个东西，在这个变体里还在画面里吗？</b>
     在 = 变体（图生图有共同像素）；不在 = 另一份资产。<br>
-    <b>「全部展开」</b>把三张表同时铺开 —— 浏览器的 Ctrl+F 搜不到隐藏 Tab 里的文字，
+    <b>「角色档案」是卡片不是表</b>，因为它不是出图资产：它没有变体（表演不分版本，
+    它就是那份唯一权威版本），也不登记场次（每场都用它）。它管的是
+    <b>这个人怎么演、说话什么声</b> —— 八块写的是<b>开场状态</b>，
+    后来变了什么写在「后来变了什么」那一栏，一段一个阶段。<br>
+    <b>「全部展开」</b>把四块同时铺开 —— 浏览器的 Ctrl+F 搜不到隐藏 Tab 里的文字，
     要跨表搜、或者要一次截全，先按它（等同于在网址后加 <code>?tab=all</code>）。
   </div>
 
@@ -296,6 +404,11 @@
     </div>
   </div>
 
+  <div class="sect" id="sect-bio" role="tabpanel" aria-labelledby="tab-bio" tabindex="-1">
+    <h2>角色档案 <em>这个人怎么演、说话什么声 —— 写一次，之后每场只改写不重推</em></h2>
+    <div class="bios" id="tbb"></div>
+  </div>
+
   <div class="howto">
     <b>这份表是资产盘点</b> —— 这个剧本有几个场景/角色/道具、每个要几个变体、每场戏用哪一个。
     描述刻意只有几句话：写多了会压掉图像模型自己的先验，图反而更差
@@ -311,7 +424,18 @@
     <b>变体列</b>只给<b>本变体那一句改动</b> —— 不重复基础描述
     （主视角图已经出过了，变体是在那张图上做编辑）。<br>
     <b>蓝框的「参考生图」</b>是说这件道具上画着别的资产的形象（照片、油画、建筑画）——
-    必须先出被引用那张图，再以它为参考生成这件道具，不要凭文字另画一遍。
+    必须先出被引用那张图，再以它为参考生成这件道具，不要凭文字另画一遍。<br>
+    <b>角色档案上那些「复制」</b>：<b>复制档案·开场</b>给表演底本（开头拼上底档全文，
+    因为档案刻意不重写身体 —— 重写一遍就是两个版本），块状给出、<b>不揉成散文</b>；
+    揉成一段是下游每场改写时的活，存档保持块状，改一处才知道改的是哪一块。
+    <b>复制声音</b>给 Voice prompt —— 那是另一种东西：<b>原样贴进 audio 字段、
+    每次说话都贴</b>。<br>
+    <b>「后来变了什么」每段也各有一个「复制档案·〈那件事〉」</b> ——
+    点它拿到的是<b>开场 + 累积到这一段的所有变化</b>，已经拼好，不用自己合并。
+    声音也变了的阶段另给一个「复制声音·〈那件事〉」。<br>
+    ★ <b>这场戏该用哪个阶段，是导演的判断</b>：这份表只负责说清「发生了什么事、
+    他因此成了什么样」，不替你决定从第几场起切换 —— 同一件事，
+    导演可以让观众提前预感到，也可以突然给一记重锤。
   </div></div>
 <div id="probe">场</div>
 <script id="data" type="application/json">{{DATA_JSON}}</script>
@@ -347,6 +471,33 @@ var ANCHOR_RE = /参照物/;
 var RELOCATE_RE = /(视点|视角|镜头|机位)\s*(移进|移到|移入|挪进|挪到|换到|转到|进到)/;
 var OUTFIT_SWAP = ['另一套','另一身','换一套','换一身','整套换','换成另','改成另一'];
 var PROP_SWAP = ['另一件','另一枚','另一把','另一张','换一件','仿制','赝品','复制品','替代品'];
+/* ===== 角色档案（bios）专有 =====
+   ★ 双向墙：bios 禁服装/相貌词（档案退化成外观复述就白建了；ACTING rule 6
+     `No wardrobe. The profile must survive any costume change.`），
+     而 EMOTION/TRAIT 那两条**不给 bios 豁免以外的任何放松** ——
+     角色 brief 里照旧一个性格词都不许有，否则性格回流，出图又拿一个瞬间当全片基准。 */
+var BIO_LOOK = ['衣服','衣裳','外套','夹克','工装','制服','套装','裤子','裙子','鞋子','料子','布料',
+  '脸型','颧骨','鼻梁','发型','刘海','身高','体重'];
+/* 触发条件的标记词。ACTING rule 2：`Tics without triggers are decoration; tics with
+   triggers are dramaturgy`。★ 刻意不收单字「时」—— 会被"同时""时常"命中，闸门变成假绿。 */
+var BIO_TRIGGER = ['的时候','时候','一旦','每逢','每当','遇到','碰上','只要','听到','提到',
+  '被人','当着','面前','一见','每次','要是'];
+/* 官方定的块序（ACTING §6 `block order is fixed`），不是排版偏好 */
+var BIO_BLOCKS = ['posture','engine','vocalProfile','tics','gait','crack','softeningTarget','eyeLife'];
+var BIO_OPTIONAL = ['softeningTarget'];
+var VOICE_KEYS = ['register','tempo','accent','manner'];
+/* 步态必须取名（ACTING rule 3：引号里的自造名） */
+var GAIT_NAME_RE = /[「『“"'][^」』”"']{1,16}[」』”"']/;
+/* ★ 时间墙（加 arc[] 之后才有的第二道墙，两个方向都要闸门）：
+     八块  → 禁跨时期词（BIO_DRIFT）。八块写开场那一刻，"后来越来越塌"属于 arc[]。
+             ★ 刻意不收"当年/早年/从前/落下的" —— posture 要写体态的来历，
+               那是前史、过去时、永不变（ACTING rule 8 `Physique carries biography`）。
+     arc[] → 禁场次分配句（ARC_SCHEDULE / ARC_SCHEDULE_RE）。"儿子被带走那天之后"是事实；
+             "从第 60 场起都按这个演"是导演的节奏判断，副导演替他决定就越界了。
+   判据一句话：**这句话是剧本里发生过的事，还是我替导演决定的节奏？** */
+var BIO_DRIFT = ['后来','后期','渐渐','越来越','到了最后','最终','一路'];
+var ARC_SCHEDULE = ['后半段','前半段','中段','片尾','结局时','之后每场','以后一直','起就一直'];
+var ARC_SCHEDULE_RE = /第\s*\d+\s*[场幕集]\s*(之后|以后|起|开始)/;
 
 var D = JSON.parse(document.getElementById('data').textContent);
 var Q = new URLSearchParams(location.search);
@@ -358,6 +509,7 @@ var LOCS  = D.assets     || [];
 var CHARS = D.characters || [];
 var FITS  = D.outfits    || [];
 var PROPS = D.props      || [];
+var BIOS  = D.bios       || [];
 
 /* tag → 名称，给 refs 提示用（含变体） */
 var NAMES = {};
@@ -379,6 +531,7 @@ var mparts=
 if(CHARS.length) mparts+='<div><span>角色底档</span> <b>'+CHARS.length+'</b></div>';
 if(FITS.length)  mparts+='<div><span>服装资产</span> <b>'+FITS.length+'</b></div>';
 if(PROPS.length) mparts+='<div><span>关键道具</span> <b>'+PROPS.length+'</b></div>';
+if(BIOS.length)  mparts+='<div><span>角色档案</span> <b>'+BIOS.length+'</b></div>';
 document.getElementById('meta').innerHTML=mparts;
 
 /* ---------- 复制文本 ----------
@@ -506,19 +659,142 @@ PROPS.forEach(function(p){
     pi:push(p.brief+refLines(rf))});
 });
 
+/* ---------- 角色档案 ----------
+   ★ 卡片，不是第四张同构表。档案不是出图资产：它没有变体（表演不分版本，它就是那个
+     唯一权威版本）、也不登记场次（每场都用它，登记等于把全片场次抄一遍）——
+     硬塞进「资产 | 需求描述 | 变体」四列表会逼出两个空列。
+   按 characters[] 的顺序渲染，不按 bios[] 的顺序 —— 使用者刚在角色表里看过那个次序，
+   两处对不上会让人以为漏了人。 */
+var tbb=document.getElementById('tbb');
+var BIO_LABEL={posture:'体态与来历',engine:'心理引擎',vocalProfile:'说话怎么变',
+  tics:'习惯动作',gait:'步态',crack:'面具裂开',softeningTarget:'唯一软下来的',eyeLife:'眼睛'};
+var VOICE_LABEL={register:'音区音色',tempo:'速度停顿',accent:'口音出身',manner:'腔调与压力'};
+var bioByChar={}; BIOS.forEach(function(b){ if(b.char&&!bioByChar[b.char]) bioByChar[b.char]=b });
+var arcOf=function(b){ return Array.isArray(b.arc)?b.arc:[] };
+/* 阶段的短名：按钮和标题上用。事件太长就截断 —— 按钮要认得出，不要一行装不下 */
+function arcName(s,j){
+  var a=String((s&&s.after)||'').trim();
+  if(!a) return '阶段'+(j+1);
+  return a.length>12 ? a.slice(0,12)+'…' : a;
+}
+/* 复制文本 = 表演档案的**底本**，块状给出，**不揉成散文** ——
+   揉成一段流畅散文是下游每场改写时的活（ACTING §8 `One flowing paragraph`），
+   不是存档的形态。存档块状，改一处才知道改的是哪一块。
+   ★ 开头拼上底档全文：ACTING §6 块 2 的位置是年龄/体格/体态，其中年龄和体格
+     由底档承担，档案只补 posture 那半 —— 重写一遍就是两个版本的身体。
+   ★★ upto 是**阶段选择器**：
+        upto < 0  → 只到开场（八块本身，就是原来的行为）
+        upto = k  → 八块之后按顺序追加 arc[0..k] 的 state（**累积**，不是只给第 k 段）
+      累积是官方 §11 `Degradation accumulates … never resetting between scenes` 的
+      结构化实现 —— 原来那句话只能靠一句提醒，现在由顺序拼装保证。
+   ★ 谁来点哪个按钮（= 这场戏用哪个阶段）是**导演的判断**，不是 ACTING 自己挑。 */
+function bioProfileText(b,c,upto){
+  var A=arcOf(b), n=(upto==null?-1:upto);
+  var L=[ '角色：'+((c&&c.name)||b.char) ];
+  if(c&&c.brief) L.push('形象（底档，勿重写）：'+c.brief);
+  L.push(n<0?'—— 以下是他【开场】时的样子 ——':'—— 以下是他【开场】时的样子，后面还有变化 ——');
+  BIO_BLOCKS.forEach(function(k){ if(b[k]) L.push(BIO_LABEL[k]+'：'+b[k]) });
+  if(b.superObjective) L.push('贯穿全片的目标：'+b.superObjective);
+  for(var j=0;j<=n&&j<A.length;j++){
+    var s=A[j]||{};
+    L.push('—— 【'+((s.after||('阶段'+(j+1))))+(s.scene?'（'+s.scene+'）':'')+'】他成了这样 ——');
+    if(s.state) L.push(s.state);
+  }
+  if(n>=0&&A.length)
+    L.push('★ 以上是同一个人的几个时期，按先后排列，**后面的时期覆盖前面的** —— '+
+           '开场那几块里凡是被后面改掉的，按后面那版演；没被提到的照开场演。');
+  L.push('—— 每场戏把上面这些改写进当场的姿态与动作，核不动；'+
+         '物理上做不到的行为要**转移**不要删（爱踱步的人坐下了，同样的劲头变成晃腿、敲手指）。');
+  return L.join('\n');
+}
+/* 声音：upto 同上。取 arc[0..upto] 里**最后一个**带 voice 的阶段，没有就回落到开场那版。
+   ★ 官方那套只有一个声音格子、压根没设计声音会变，所以"该贴哪一句"这个判断
+     必须由外面（导演）来做 —— 页面只负责把每个阶段该贴的那句算出来。
+   ★ 一并回报**这一句是哪个阶段给的**：中间那些没改声音的阶段沿用开场那版，
+     标成"某阶段那一版"就是撒谎（真的只是开场那版还没变）。 */
+function voiceOf(b,upto){
+  var A=arcOf(b), v=b.voice||{}, from=null, n=(upto==null?-1:upto);
+  for(var j=0;j<=n&&j<A.length;j++) if(A[j]&&A[j].voice){ v=A[j].voice; from=A[j]; }
+  return {v:v,from:from};
+}
+function voiceText(b,upto){
+  var r=voiceOf(b,upto), n=(upto==null?-1:upto);
+  return VOICE_KEYS.map(function(k){return r.v[k]||''}).filter(Boolean).join('；')+
+    '。（原样贴进 audio 字段，每次说话都贴。'+
+    (r.from
+      ? '这是「'+(r.from.after||'')+'」那一版 —— 换哪一版是导演的判断，不要让下游自己挑。）'
+      : (n<0 ? '这是开场那一版。）' : '这是开场那一版 —— 到这个阶段声音还没变。）'));
+}
+function bioCard(b,c){
+  var A=arcOf(b);
+  var pi=push(bioProfileText(b,c,-1)), vi=push(voiceText(b,-1));
+  var h='<div class="bio"><div class="bh">'+
+    '<button class="copy" data-p="'+pi+'" title="复制表演档案底本（开场那一版）">复制档案·开场</button>'+
+    '<span class="tag">'+esc(b.char)+'</span>'+
+    '<span class="aname">'+esc((c&&c.name)||'（底档缺失）')+'</span></div>'+
+    '<div class="bstage">开场状态'+(A.length?'（后面有 '+A.length+' 个阶段）':'（全片没有变化）')+'</div><dl>';
+  BIO_BLOCKS.forEach(function(k){
+    var t=b[k];
+    if(!t&&BIO_OPTIONAL.indexOf(k)>=0) return;   // 可省的那一块，没写就不占一行
+    h+='<dt>'+esc(BIO_LABEL[k])+'</dt><dd>'+(t?esc(t):'<span class="miss">缺</span>')+'</dd>';
+  });
+  h+='</dl>';
+  var v=b.voice||{};
+  h+='<div class="voice"><button class="copy" data-p="'+vi+'" title="复制 Voice prompt（开场那一版）">复制声音·开场</button>'+
+    '<b>声音</b> 原样贴 audio 字段，每次说话都贴<br>'+
+    VOICE_KEYS.map(function(k){
+      return '<span class="vk">'+esc(VOICE_LABEL[k])+'</span> '+
+        (v[k]?esc(v[k]):'<span class="miss">缺</span>');
+    }).join('　·　')+'</div>';
+  /* ---- 后来变了什么：一段一格，各带一个"复制到这个阶段"的按钮 ---- */
+  if(A.length){
+    h+='<div class="arc"><b>后来变了什么</b>'+
+      '<span class="arcnote">阶段是<b>事实</b>（剧本里发生了这件事，他因此成了什么样）；'+
+      '<b>从第几场起按哪个阶段演，是导演的判断，这份表不给</b>。'+
+      '每段那个按钮给的是「开场 + 累积到这一段的所有变化」。</span>';
+    A.forEach(function(s,j){
+      var api=push(bioProfileText(b,c,j));
+      var avi=(s&&s.voice)?push(voiceText(b,j)):-1;
+      h+='<div class="arcs"><div class="arch">'+
+        '<button class="copy" data-p="'+api+'" title="复制档案：开场 + 累积到这个阶段的所有变化">复制档案·'+esc(arcName(s,j))+'</button>'+
+        (avi>=0?'<button class="copy" data-p="'+avi+'" title="复制这个阶段的 Voice prompt">复制声音·'+esc(arcName(s,j))+'</button>':'')+
+        '<span class="arcev">'+esc((s&&s.after)||('阶段'+(j+1)))+'</span>'+
+        ((s&&s.scene)?'<span class="arcsc">'+esc(s.scene)+'</span>':'')+
+        (avi>=0?'<span class="arcvo">声音也变了</span>':'')+
+        '</div><div class="arcst">'+
+        ((s&&s.state)?esc(s.state):'<span class="miss">缺</span>')+'</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='<div class="canon"><b>贯穿目标</b>'+
+    (b.superObjective?esc(b.superObjective):'<span class="miss">缺</span>')+'</div>';
+  return h+'</div>';
+}
+(function(){
+  var seen={}, html='';
+  CHARS.forEach(function(c){
+    var b=bioByChar[c.tag];
+    if(!b) return;                 // 底档没档案：build 会拒，这里不硬造一张空卡
+    seen[c.tag]=1; html+=bioCard(b,c);
+  });
+  BIOS.forEach(function(b){ if(!b.char||!seen[b.char]) html+=bioCard(b,null) });  // 兜底
+  tbb.innerHTML=html;
+})();
+
 /* 空的那张表不出 Tab —— 纯场景盘点仍然合法 */
 var SECTS=[
   {k:'loc', lab:'场景',      n:LOCS.length},
   {k:'char',lab:'角色 · 服装',n:FITS.length},
-  {k:'prop',lab:'关键道具',   n:PROPS.length}
+  {k:'prop',lab:'关键道具',   n:PROPS.length},
+  {k:'bio', lab:'角色档案',   n:BIOS.length}
 ];
 var LIVE=SECTS.filter(function(s){return s.n>0});
 var tabsEl=document.getElementById('tabs'), wrapEl=document.querySelector('.wrap');
 var sectOf=function(k){return document.getElementById('sect-'+k)};
 
 /* ---------- Tab 切换 ----------
-   ?tab=loc|char|prop|all 深链；all = 三张表同时铺开
-   （无头截图自检要一次看到三张表，Ctrl+F 也搜不到隐藏 Tab 里的文字）。
+   ?tab=loc|char|prop|bio|all 深链；all = 四块同时铺开
+   （无头截图自检要一次看到全部四块，Ctrl+F 也搜不到隐藏 Tab 里的文字）。
    用 replaceState 不用 pushState：切 Tab 不该往浏览历史里塞记录、把返回键搞坏。 */
 var btns={}, spreadBtn=null, curTab=null;
 function activate(k, focus){
@@ -553,7 +829,7 @@ if(LIVE.length>1){
     btns[s.k]=b;
   });
   spreadBtn=mkTab('tab-all','全部展开', LIVE.reduce(function(a,s){return a+s.n},0), 'spread',
-    '三张表同时铺开 —— 跨表 Ctrl+F、或者一次截全都要用它');
+    '四块同时铺开 —— 跨表 Ctrl+F、或者一次截全都要用它');
   spreadBtn.setAttribute('aria-pressed','false');
   spreadBtn.addEventListener('click',function(){activate(curTab==='all'?LIVE[0].k:'all')});
   /* 键盘：← → 在 Tab 之间移动并切换，Home/End 到两端（WAI-ARIA tabs 的做法） */
@@ -589,11 +865,15 @@ if(LIVE.length>1){
     if(tr2){tr2.classList.add('hl'); tr2.scrollIntoView({block:'center'});}}
 })();
 
+/* ★ 恢复**原来那个** label，不是硬写回"复制"。
+   档案卡上的按钮叫「复制档案·开场」「复制档案·儿子被带走那天之后」——
+   点一次就被冲成光秃秃的"复制"，几个按钮并排就分不出哪个是哪个阶段了。 */
 document.querySelectorAll('.copy').forEach(function(btn){
+  btn.dataset.lab=btn.textContent;
   btn.addEventListener('click',function(){
     navigator.clipboard.writeText(payloads[parseInt(btn.dataset.p,10)].t).then(function(){
       btn.classList.add('done');btn.textContent='已复制';
-      setTimeout(function(){btn.classList.remove('done');btn.textContent='复制'},1500);
+      setTimeout(function(){btn.classList.remove('done');btn.textContent=btn.dataset.lab||'复制'},1500);
     });
   });
 });
@@ -659,6 +939,55 @@ document.fonts.ready.then(function(){
   PROPS.forEach(function(p){(p.refs||[]).forEach(function(r){
     var g=c('refs'); g.tot++; if(NAMES[r]&&!baseOnly[r])g.ok++; })});
 
+  /* 角色档案四项。★ 拆四项而不是并成一项，是因为四种失败的改法完全不同：
+       bio      —— 必填块或四要素缺了、或三道写作闸门没过（改法：补写那一块）
+       bio-lane —— 双向墙被穿了（改法：把服装/相貌/机位那句删掉，换成行为）
+       bio-arc  —— 时间墙被穿了、或某个阶段没写全（改法：把那句话**挪到对的时期**，
+                   或补上"是哪件事之后"。跟 bio-lane 的"删掉换成行为"不是同一个动作，
+                   所以不并进去）
+       bio-pair —— 底档与档案没有一一对应（改法：补一份档案，或把重复的两份并掉）
+     并成一项的话，badge 报 FAIL 而人不知道该往哪儿看。 */
+  var bioSeen={};
+  BIOS.forEach(function(b){
+    var vv=b.voice||{};
+    var A=Array.isArray(b.arc)?b.arc:[];
+    var g=c('bio'); g.tot++;
+    var good=!!(b.char&&!bioSeen[b.char]);
+    if(b.char) bioSeen[b.char]=1;
+    BIO_BLOCKS.forEach(function(k){
+      if(!nonempty(b[k])&&BIO_OPTIONAL.indexOf(k)<0) good=false; });
+    if(!nonempty(b.superObjective)) good=false;
+    VOICE_KEYS.forEach(function(k){ if(!nonempty(vv[k])) good=false });
+    if(!hit(b.tics,BIO_TRIGGER)) good=false;                        // 每个 tic 要有触发条件
+    if(!hit(b.crack,BIO_TRIGGER)) good=false;                       // 面具裂开要有条件
+    if(!GAIT_NAME_RE.test(String(b.gait||''))) good=false;          // 步态要取名
+    if(good) g.ok++;
+    var w=c('bio-lane'); w.tot++;
+    var texts=BIO_BLOCKS.map(function(k){return b[k]||''})
+      .concat([b.superObjective||''])
+      .concat(VOICE_KEYS.map(function(k){return vv[k]||''}))
+      .concat(A.map(function(s){return (s&&s.state)||''}))
+      .concat(A.map(function(s){return (s&&s.after)||''}));
+    var dirty=false;
+    texts.forEach(function(t){ if(hit(t,BIO_LOOK)!==null||hit(t,DOWNSTREAM)!==null) dirty=true });
+    if(!dirty) w.ok++;
+    /* 时间墙两个方向 + 每个阶段自身写全了没有。arc 留空的角色照样计一次并算通过 ——
+       没有弧光是合法的，不是缺项。 */
+    var a=c('bio-arc'); a.tot++;
+    var aok=true;
+    BIO_BLOCKS.forEach(function(k){ if(hit(b[k],BIO_DRIFT)!==null) aok=false });   // 八块不许跨时期
+    A.forEach(function(s){
+      if(!s||typeof s!=='object'){ aok=false; return; }
+      if(!nonempty(s.after)||!nonempty(s.state)) aok=false;
+      [s.after||'',s.state||''].forEach(function(t){
+        if(hit(t,ARC_SCHEDULE)!==null||ARC_SCHEDULE_RE.test(String(t))) aok=false;  // 不许替导演分配场次
+      });
+      if(s.voice) VOICE_KEYS.forEach(function(k){ if(!nonempty(s.voice[k])) aok=false });
+    });
+    if(aok) a.ok++;
+  });
+  CHARS.forEach(function(ch){ var g=c('bio-pair'); g.tot++; if(bioSeen[ch.tag])g.ok++; });
+
   var covered=Object.keys(locIds).length;
   var covOK = covered===Number(D.meta.sceneCount);
   /* 交叉对账：角色/道具的场次必须都在场景表里 —— 有人有道具却没有地方 = 场景表漏了一场 */
@@ -677,7 +1006,8 @@ document.fonts.ready.then(function(){
     'char='+CHARS.length+'/'+FITS.length+'+'+nFV+'v',
     'prop='+PROPS.length+'+'+nPV+'v',
     'rows='+rowN], bad=false;
-  ['brief','var-brief','lane','no-backstory','char-lane','anchor','scenes','refs'].forEach(function(k){
+  ['brief','var-brief','lane','no-backstory','char-lane','anchor','scenes','refs',
+   'bio','bio-lane','bio-arc','bio-pair'].forEach(function(k){
     var v=R[k]||{ok:0,tot:0}, good=(v.ok===v.tot);
     if(!good)bad=true;
     parts.push(k+'='+v.ok+'/'+v.tot+' '+(good?'OK':'<span class="x">FAIL</span>'));

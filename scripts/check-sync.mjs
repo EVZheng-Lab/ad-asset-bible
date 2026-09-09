@@ -109,7 +109,17 @@ for (const n of REGEXES) {
 const REQUIRED = ['"assets"', '"tag"', '"name"', '"scenes"', '"brief"', '"variants"',
   '"characters"', '"outfits"', '"char"', '"props"', '"refs"', '"basedOn"',
   '"sceneCount"', '"assetCount"', '"variantCount"', '"charCount"', '"outfitCount"', '"propCount"',
-  '"worldview"'];
+  '"worldview"',
+  /* 角色档案。★ 一律带引号写 —— 裸写 `voice` 会被 `vocalProfile` 之外的东西命中吗？
+     不会，但裸写 `char` 就会被 `charCount` 包含掉（上面那条注释记的就是这个坑），
+     所以这一整列不做例外，全都带引号。
+     ★ arc 那三个（arc / after / state）是后来补的第五种生命周期「阶段状态」。
+       `degradation` 已被 arc 取代删掉 —— 它只有"变差"一个方向、是一句话，
+       而 arc 覆盖三个方向（变差/变好/新长出来的），累积语义还由顺序拼装保证。 */
+  '"bios"', '"bioCount"', '"posture"', '"engine"', '"vocalProfile"', '"tics"', '"gait"',
+  '"crack"', '"softeningTarget"', '"eyeLife"', '"voice"', '"register"', '"tempo"',
+  '"accent"', '"manner"', '"superObjective"',
+  '"arc"', '"after"', '"state"'];
 const contract = html.slice(0, html.indexOf('<style>'));
 if (!contract.includes('数据契约')) {
   console.log(`✗ ${'数据契约注释'.padEnd(14)} 外壳顶部找不到数据契约段 —— 恢复它`);

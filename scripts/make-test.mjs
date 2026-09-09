@@ -23,6 +23,19 @@
  *   （没写 meta.worldview）。两条也不是字段闸门 —— 前者管的是"产出不能依赖
  *   当次对话才能读懂"，后者管的是"第 0 步的结论必须落进产出、不能只留在聊天记录里"，
  *   都是结构完整性，不是逼着把描述写细。
+ *
+ * ★ 加角色档案（bios）时又加了 12 条，这批是**第三类**：
+ *   「被声明为必须、却没有闸门」这个结构缺口的守卫（跟当年补参照物闸门同类）。
+ *   它们看着像字段闸门，但那条禁止扩张的纪律在这里不成立，理由是机制层面的：
+ *   那条纪律的根据是"描述写多了会压掉图像模型的先验，图反而更差"，
+ *   而 bios **根本不喂图像模型** —— 压先验那个机制在这儿没有作用点。
+ *   详见 CASES 里 bios 那一段的注释。
+ *
+ * ★ 加 arc[]（后来变了什么）时又加了 10 条，同样是第三类，但守的是新的一道墙：
+ *   **时间墙**。八块写开场那一刻、arc 写后来变了什么，两边都不许伸手到对方那格。
+ *   其中最要紧的一条不是格式而是**分工**：arc 只记事实（发生了什么事、他因此
+ *   成了什么样），"从第几场起按哪个状态演"是导演的节奏判断 ——
+ *   副导演替他写了，导演就没得选了。ARC_SCHEDULE 那两条用例守的就是这个。
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -192,6 +205,120 @@ const CASES = [
   { name: 'basedon-noncontiguous', expect: '下标不连续',
     note: '同一组衍生场景中间被插了一份不相干的场景 —— 使用者会找不到"这几行是同一个家"',
     mut: d => { d.assets = [d.assets[0], d.assets[2], d.assets[1]]; } },
+
+  /* ===== 角色档案（bios）=====
+   * ★ 这一批看着像"字段闸门"（这个字段必须写），但**上面那条禁止扩张的纪律在这里不成立**，
+   *   理由是机制层面的，不是网开一面：那条纪律的根据是"描述写多了会压掉图像模型的先验，
+   *   图反而更差"。而 bios **根本不喂图像模型** —— 它是表演与声音的底本，
+   *   下游每场改写之后才进提示词。压先验那个机制在这儿没有作用点。
+   * ★ 它们真正属于的类别是第三类：**「被声明为必须、却没有闸门」这个结构缺口的守卫** ——
+   *   跟当年补参照物闸门是同一类。ACTING §6 那八条规则每一条都是"必须"
+   *   （每个 tic 带触发、步态取名、至少一条 However-when、softening target 只能一个），
+   *   如果把档案存成一整段散文，这八条**一条都上不了闸门**，
+   *   那就是把参照物那个坑在新模块里原样重演一遍。块状存 + 逐块上闸门就是为了避开它。
+   * ★ 另一半（性格不许回流进角色 brief）靠上面 char-emotion / char-trait 两条守着，
+   *   它们**没有因为 bios 的加入而拿到任何豁免** —— 双向墙，两边都要有用例。 */
+  { name: 'bio-missing', expect: '没有角色档案',
+    note: '建了底档却没有档案 —— 下游每镜把情绪各自翻成一串动作，三镜翻出三套习惯，那是行为层的漂移',
+    mut: d => { d.bios = d.bios.filter(b => b.char !== '@char_xiaomei');
+                d.meta.bioCount = d.bios.length; } },
+
+  { name: 'bio-dup', expect: '已经有一份档案了',
+    note: '一个角色两份档案 —— 它是"这个人怎么演"的唯一权威版本，两份必然对不齐',
+    mut: d => { d.bios[1].char = '@char_along'; } },
+
+  { name: 'bio-char-dangling', expect: '引用的角色底档',
+    note: '档案指向了一个不存在的底档 —— 跟服装/refs 拼错一个字是同一类问题',
+    mut: d => { d.bios[0].char = '@char_nobody'; } },
+
+  { name: 'bio-block-missing', expect: '缺「眼睛怎么活」',
+    note: 'eyeLife 是 ACTING §7 原文 mandatory in every profile —— dead eyes 是 AI 表演的头号破功点',
+    mut: d => { d.bios[0].eyeLife = ''; } },
+
+  { name: 'bio-tic-no-trigger', expect: '习惯动作没有触发条件',
+    note: '没触发条件的小动作叫装饰不叫戏剧 —— 下游不知道什么时候该让他做，于是每镜自己决定',
+    mut: d => { d.bios[0].tics = '右手拇指来回搓食指第二节，手会插进口袋里攥一下再拿出来。'; } },
+
+  { name: 'bio-gait-unnamed', expect: '步态没取名',
+    note: '步态不取名，下游每场只能重读一段生物力学描述 —— 名字才是可复用的把手',
+    mut: d => { d.bios[0].gait = '步子短，落脚先着外侧，肩膀不摆，走多远都这个速度。'; } },
+
+  { name: 'bio-crack-no-cond', expect: '面具裂开的条件没写出来',
+    note: '「偶尔会露出真情绪」没有条件等于没有 —— 官方要的是精确的触发条件',
+    mut: d => { d.bios[0].crack = '偶尔那张平脸会散掉，喉结动一下，答话变碎。'; } },
+
+  { name: 'bio-voice-incomplete', expect: '缺「口音与出身」',
+    note: '四要素缺一件，那一维就由模型自己填，同一个角色两条台词声音会对不上',
+    mut: d => { delete d.bios[0].voice.accent; } },
+
+  { name: 'bio-no-superobjective', expect: '缺「贯穿全片想要什么」',
+    note: '没有贯穿目标，下游每场的目标各自成立、连不成一条线',
+    mut: d => { delete d.bios[0].superObjective; } },
+
+  /* 双向墙的 bios 那半：档案不许退化成外观复述，也不许伸手管机位 */
+  { name: 'bio-wardrobe', expect: '出现服装/相貌词',
+    note: 'ACTING rule 6：`The profile must survive any costume change` —— 换了衣服档案还得成立',
+    mut: d => { d.bios[0].posture += '常年穿一身深蓝工装。'; } },
+
+  { name: 'bio-downstream', expect: '出现下游词',
+    note: 'ACTING rule 7：`No camera, no color` —— 机位与调色是 Lira / CINEDANCE 的活',
+    mut: d => { d.bios[0].eyeLife += '特写里眼底那点光要压住。'; } },
+
+  { name: 'bio-too-long', expect: '八块合计',
+    note: '档案写成人物小传就不是"每场改写的底本"了 —— 下游没人会通读一千字再去写一个镜头',
+    mut: d => { d.bios[0].engine += '他从不把话说满，'.repeat(25); } },
+
+  /* ===== arc[]：后来变了什么（第五种生命周期）=====
+   * ★ 这一批守的是同一个结构缺口，但换了一道墙：**时间墙**。
+   *   八块写开场那一刻，arc 写后来变了什么 —— 两边都不许伸手到对方那格去。
+   *   而 arc 自己还有一条更要紧的边界：它只记**事实**（发生了什么事、他因此成了什么样），
+   *   **"从第几场起按哪个状态演"是导演的节奏判断**，副导演替他决定就越界了。
+   *   同一件事，导演可以让观众提前预感到、也可以突然给一记重锤，两个导演答案不一样 ——
+   *   所以这不是措辞洁癖，是分工：写进去了，导演就没得选了。
+   * ★ 没有弧光的角色 arc 留空是**合法**的（ok.json 的小美就是这个样本），
+   *   所以这一批全都是"写了 arc 但写坏了"，没有一条是"没写 arc"。 */
+
+  { name: 'bio-arc-no-event', expect: '从哪件事之后',
+    note: '阶段不锚事件就只能锚场次 —— 而场次是制作索引，剪辑一调序「第 47 场之后」就失效了',
+    mut: d => { delete d.bios[0].arc[0].after; } },
+
+  { name: 'bio-arc-no-state', expect: '缺「这个阶段变了什么」',
+    note: '只说"这里有个转折"却不说他变成什么样，下游拿不到任何可演的东西',
+    mut: d => { d.bios[0].arc[0].state = ''; } },
+
+  { name: 'bio-arc-schedule', expect: '出现场次分配',
+    note: '★ 时间墙的 arc 那半：从第几场起按哪个状态演是**导演的判断**，副导演只记事实',
+    mut: d => { d.bios[0].arc[0].state += '从第 60 场起都按这个演。'; } },
+
+  { name: 'bio-arc-schedule-vague', expect: '出现场次分配',
+    note: '「后半段就是这个样子」是同一个越界的模糊版本 —— 正则拦不住它，靠词表',
+    mut: d => { d.bios[0].arc[1].after = '后半段'; } },
+
+  { name: 'bio-arc-voice-incomplete', expect: '缺「口音与出身」',
+    note: '阶段声音跟开场声音同一条纪律：四件缺一件，那一维就由模型自己填',
+    mut: d => { delete d.bios[0].arc[1].voice.accent; } },
+
+  { name: 'bio-arc-scene-unknown', expect: '在场景表里没有出现过',
+    note: '跟"角色/道具的场次必须都在场景表里"是同一条交叉对账 —— 有事发生却没有地方',
+    mut: d => { d.bios[0].arc[0].scene = 'S99'; } },
+
+  { name: 'bio-arc-out-of-order', expect: '不是按剧本时间顺序',
+    note: '页面按阶段复制是顺序累积的（第三段 = 八块 + 段一 + 段二 + 段三），排反了成品就拼反',
+    mut: d => { const a = d.bios[0].arc; const t = a[0].scene; a[0].scene = a[1].scene; a[1].scene = t; } },
+
+  { name: 'bio-arc-too-long', expect: `超过 150`,
+    note: '一段只承担"变了什么"，写长了就是在把八块重抄一遍 —— 又回到"两个版本的身体"',
+    mut: d => { d.bios[0].arc[0].state += '下巴抬得更高了些，'.repeat(12); } },
+
+  { name: 'bio-arc-too-many', expect: '超过 4',
+    note: '★ 超过 4 段基本可断定是在**按场次切**，而场次是制作索引不是戏剧索引',
+    mut: d => { const s = d.bios[0].arc[0];
+                d.bios[0].arc = [s, s, s, s, s]; } },
+
+  /* 时间墙的另一半：八块里不许写后来的变化 */
+  { name: 'bio-drift-in-base', expect: '出现跨时期词',
+    note: '两个时期挤在开场那一格里，下游没法知道现在该演哪个 —— 那句话属于 arc[]',
+    mut: d => { d.bios[0].posture += '后来越来越塌。'; } },
 ];
 
 mkdirSync(FIX, { recursive: true });
