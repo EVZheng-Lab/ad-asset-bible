@@ -227,8 +227,6 @@
   .spread{margin-left:auto}
   .spread[aria-pressed="true"]{color:var(--ok);border-bottom-color:var(--ok);background:var(--panel)}
   .spread[aria-pressed="true"] .n{color:var(--ok);border-color:var(--ok)}
-  .tabnote{color:var(--faint);font-size:12px;line-height:1.7;margin:9px 0 14px}
-  .tabnote b{color:var(--dim)}
   code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:11.5px;color:var(--dim)}
 
   .sect{display:none}
@@ -330,7 +328,6 @@
        因为**选哪个阶段是导演的判断**，页面只负责把每个阶段的成品算好。 */
   .bio .arc{margin-top:11px;border-top:1px solid var(--border);padding-top:10px}
   .bio .arc>b{color:var(--accent);font-weight:600;font-size:12.5px}
-  .bio .arcnote{display:block;color:var(--faint);font-size:11px;line-height:1.6;margin:3px 0 8px}
   .bio .arcs{position:relative;border-left:2px solid var(--border);padding:0 0 10px 11px;margin-left:3px}
   .bio .arcs:last-child{padding-bottom:0}
   .bio .arcs::before{content:'';position:absolute;left:-5px;top:5px;width:8px;height:8px;
@@ -347,8 +344,6 @@
   .bio .canon b{color:var(--accent);font-weight:600;margin-right:6px}
   .bio .miss{color:var(--bad);font-style:italic}
 
-  .howto{color:var(--faint);font-size:12px;margin-top:22px;line-height:1.75}
-  .howto b{color:var(--dim)}
   #probe{position:absolute;left:-9999px;top:-9999px;font-size:100px;white-space:nowrap}
 </style></head><body>
 <div class="wrap">
@@ -359,17 +354,6 @@
   <div class="meta" id="meta"></div>
 
   <div class="tabs" id="tabs" role="tablist" aria-label="资产类别"></div>
-  <div class="tabnote">
-    <b>前三张表结构相同</b>：序号 | 资产 | 需求描述 | 变体。变体的判据也是同一句 ——
-    <b>主资产那个东西，在这个变体里还在画面里吗？</b>
-    在 = 变体（图生图有共同像素）；不在 = 另一份资产。<br>
-    <b>「角色档案」是卡片不是表</b>，因为它不是出图资产：它没有变体（表演不分版本，
-    它就是那份唯一权威版本），也不登记场次（每场都用它）。它管的是
-    <b>这个人怎么演、说话什么声</b> —— 八块写的是<b>开场状态</b>，
-    后来变了什么写在「后来变了什么」那一栏，一段一个阶段。<br>
-    <b>「全部展开」</b>把四块同时铺开 —— 浏览器的 Ctrl+F 搜不到隐藏 Tab 里的文字，
-    要跨表搜、或者要一次截全，先按它（等同于在网址后加 <code>?tab=all</code>）。
-  </div>
 
   <div class="sect" id="sect-loc" role="tabpanel" aria-labelledby="tab-loc" tabindex="-1">
     <h2>场景 <em>这个剧本有几个地方、每场戏在哪一处</em></h2>
@@ -408,35 +392,7 @@
     <h2>角色档案 <em>这个人怎么演、说话什么声 —— 写一次，之后每场只改写不重推</em></h2>
     <div class="bios" id="tbb"></div>
   </div>
-
-  <div class="howto">
-    <b>这份表是资产盘点</b> —— 这个剧本有几个场景/角色/道具、每个要几个变体、每场戏用哪一个。
-    描述刻意只有几句话：写多了会压掉图像模型自己的先验，图反而更差
-    （实测过，「一个中式庭院」五个字比上千字的规格出图更好）。
-    尺寸、材料、机位、光线一律不写 —— 那些是 Lira 和图像模型的活。<br>
-    换机位、下雨、烧成废墟、衣服撕破、玉佩碎裂都是变体；
-    镜头搬进另一个房间、换一整套衣服、换成一枚仿制的玉佩都不是 —— 那些是另一份资产。<br>
-    <b>三个「复制」各给一样东西，都不带标签和场次这类账目信息</b>：
-    <b>序号列</b>只是行号，方便用 <code>?row=N</code> 指认一行，不参与复制；
-    <b>资产列</b>给<b>资产名</b>（「沈云卿 · 诰命礼服」，拿去当文件名或指代）；
-    <b>需求描述列</b>给<b>需求描述原文</b>（服装格前面拼上底档，脸和衣服下游都要；
-    有蓝框的道具附一句参考生图说明）；
-    <b>变体列</b>只给<b>本变体那一句改动</b> —— 不重复基础描述
-    （主视角图已经出过了，变体是在那张图上做编辑）。<br>
-    <b>蓝框的「参考生图」</b>是说这件道具上画着别的资产的形象（照片、油画、建筑画）——
-    必须先出被引用那张图，再以它为参考生成这件道具，不要凭文字另画一遍。<br>
-    <b>角色档案上那些「复制」</b>：<b>复制档案·开场</b>给表演底本（开头拼上底档全文，
-    因为档案刻意不重写身体 —— 重写一遍就是两个版本），块状给出、<b>不揉成散文</b>；
-    揉成一段是下游每场改写时的活，存档保持块状，改一处才知道改的是哪一块。
-    <b>复制声音</b>给 Voice prompt —— 那是另一种东西：<b>原样贴进 audio 字段、
-    每次说话都贴</b>。<br>
-    <b>「后来变了什么」每段也各有一个「复制档案·〈那件事〉」</b> ——
-    点它拿到的是<b>开场 + 累积到这一段的所有变化</b>，已经拼好，不用自己合并。
-    声音也变了的阶段另给一个「复制声音·〈那件事〉」。<br>
-    ★ <b>这场戏该用哪个阶段，是导演的判断</b>：这份表只负责说清「发生了什么事、
-    他因此成了什么样」，不替你决定从第几场起切换 —— 同一件事，
-    导演可以让观众提前预感到，也可以突然给一记重锤。
-  </div></div>
+</div>
 <div id="probe">场</div>
 <script id="data" type="application/json">{{DATA_JSON}}</script>
 <script>
@@ -448,6 +404,11 @@ var PLACEHOLDER_RE = /\[(?![0-9]+\])[^\]]{0,80}\]|___|TODO|待填|占位/;
 var DOWNSTREAM = ['机位','景别','构图','焦段','景深','虚化','运镜','特写','远景','近景','中景','俯拍','仰拍',
   '光比','柔光','硬光','主光','补光','布光','光晕','颗粒','暗角','过曝',
   '饱和度','色相','色调','偏暖','偏冷','对比度','调色','影调'];
+/* ★ 中文子串误伤的豁免（与 build.mjs 同步）：DOWNSTREAM 按**子串**命中，而有些
+   合法的东西名里裹着一个下游词 —— 实跑《声声相许》时「彩色相纸」被「色相」拦下，
+   那是照片的载体、画面里看得见的东西，不是配色决策。做法是匹配前把整个长词抠掉，
+   「色相」单独出现照拦。加词的判据：那个长词是看得见的东西名，不是色彩/机位决策。 */
+var DOWNSTREAM_OK = ['彩色相纸','彩色相片','黑白相纸','单色相机','原色相纸'];
 /* 只写需求、不写"为什么有这个需求"：场次号 / 场次统计 / 用途说明 / 跨行指代一律不许进描述。
    场次账目在第一列已经有了。 */
 var SCENE_ID_RE = /\d{1,3}\s*-\s*\d{1,2}|[Ss]\d{2,3}(?![0-9])/;
@@ -703,27 +664,22 @@ function bioProfileText(b,c,upto){
   if(n>=0&&A.length)
     L.push('★ 以上是同一个人的几个时期，按先后排列，**后面的时期覆盖前面的** —— '+
            '开场那几块里凡是被后面改掉的，按后面那版演；没被提到的照开场演。');
-  L.push('—— 每场戏把上面这些改写进当场的姿态与动作，核不动；'+
-         '物理上做不到的行为要**转移**不要删（爱踱步的人坐下了，同样的劲头变成晃腿、敲手指）。');
   return L.join('\n');
 }
 /* 声音：upto 同上。取 arc[0..upto] 里**最后一个**带 voice 的阶段，没有就回落到开场那版。
    ★ 官方那套只有一个声音格子、压根没设计声音会变，所以"该贴哪一句"这个判断
      必须由外面（导演）来做 —— 页面只负责把每个阶段该贴的那句算出来。
-   ★ 一并回报**这一句是哪个阶段给的**：中间那些没改声音的阶段沿用开场那版，
-     标成"某阶段那一版"就是撒谎（真的只是开场那版还没变）。 */
+   ★★ 复制出来的**只有那四句本身**，不夹任何用法说明 ——「原样贴进 audio 字段」
+      这类话是给人看的，混进 payload 会干扰下游模型对内容的理解。
+      这一句属于哪个阶段，看按钮上的名字；三条交付纪律只进第 9 步的汇报。 */
 function voiceOf(b,upto){
   var A=arcOf(b), v=b.voice||{}, from=null, n=(upto==null?-1:upto);
   for(var j=0;j<=n&&j<A.length;j++) if(A[j]&&A[j].voice){ v=A[j].voice; from=A[j]; }
   return {v:v,from:from};
 }
 function voiceText(b,upto){
-  var r=voiceOf(b,upto), n=(upto==null?-1:upto);
-  return VOICE_KEYS.map(function(k){return r.v[k]||''}).filter(Boolean).join('；')+
-    '。（原样贴进 audio 字段，每次说话都贴。'+
-    (r.from
-      ? '这是「'+(r.from.after||'')+'」那一版 —— 换哪一版是导演的判断，不要让下游自己挑。）'
-      : (n<0 ? '这是开场那一版。）' : '这是开场那一版 —— 到这个阶段声音还没变。）'));
+  var r=voiceOf(b,upto);
+  return VOICE_KEYS.map(function(k){return r.v[k]||''}).filter(Boolean).join('；')+'。';
 }
 function bioCard(b,c){
   var A=arcOf(b);
@@ -748,10 +704,7 @@ function bioCard(b,c){
     }).join('　·　')+'</div>';
   /* ---- 后来变了什么：一段一格，各带一个"复制到这个阶段"的按钮 ---- */
   if(A.length){
-    h+='<div class="arc"><b>后来变了什么</b>'+
-      '<span class="arcnote">阶段是<b>事实</b>（剧本里发生了这件事，他因此成了什么样）；'+
-      '<b>从第几场起按哪个阶段演，是导演的判断，这份表不给</b>。'+
-      '每段那个按钮给的是「开场 + 累积到这一段的所有变化」。</span>';
+    h+='<div class="arc"><b>后来变了什么</b>';
     A.forEach(function(s,j){
       var api=push(bioProfileText(b,c,j));
       var avi=(s&&s.voice)?push(voiceText(b,j)):-1;
@@ -882,6 +835,9 @@ document.querySelectorAll('.copy').forEach(function(btn){
    #probe 的字体宽度探针要等 document.fonts.ready 才准 —— 字体没就绪时量出来的宽度不可信。 */
 document.fonts.ready.then(function(){
   var hit=function(t,w){for(var i=0;i<w.length;i++){if(String(t||'').indexOf(w[i])>=0)return w[i]}return null};
+  /* 匹配前抠掉豁免的长词（见顶部 DOWNSTREAM_OK）—— 抠掉而不是开白名单，
+     被裹在长词里的那一次放过、单独出现的那一次照拦。 */
+  var stripOk=function(t,oks){var s=String(t||'');for(var i=0;i<oks.length;i++){s=s.split(oks[i]).join('')}return s};
   var R={}, c=function(k){if(!R[k])R[k]={ok:0,tot:0};return R[k]};
   /* 四条通用：场次号 / 场次统计 / 用途说明 / 跨行指代 */
   var clean=function(t){var x=String(t||'');
@@ -890,7 +846,7 @@ document.fonts.ready.then(function(){
   /* 一份资产（或变体）的共用四项：brief 有没有 / 有没有下游词 / 有没有场次 / 有没有夹叙事 */
   var take=function(bk,brief,scenes,extraClean){
     var f=c(bk); f.tot++; if(nonempty(brief))f.ok++;
-    var l=c('lane'); l.tot++; if(!hit(brief,DOWNSTREAM))l.ok++;
+    var l=c('lane'); l.tot++; if(!hit(stripOk(brief,DOWNSTREAM_OK),DOWNSTREAM))l.ok++;
     if(scenes!==null){var s=c('scenes'); s.tot++; if((scenes||[]).length)s.ok++}
     var nb=c('no-backstory'); nb.tot++; if(clean(brief)&&extraClean!==false)nb.ok++;
   };
@@ -969,7 +925,7 @@ document.fonts.ready.then(function(){
       .concat(A.map(function(s){return (s&&s.state)||''}))
       .concat(A.map(function(s){return (s&&s.after)||''}));
     var dirty=false;
-    texts.forEach(function(t){ if(hit(t,BIO_LOOK)!==null||hit(t,DOWNSTREAM)!==null) dirty=true });
+    texts.forEach(function(t){ if(hit(t,BIO_LOOK)!==null||hit(stripOk(t,DOWNSTREAM_OK),DOWNSTREAM)!==null) dirty=true });
     if(!dirty) w.ok++;
     /* 时间墙两个方向 + 每个阶段自身写全了没有。arc 留空的角色照样计一次并算通过 ——
        没有弧光是合法的，不是缺项。 */

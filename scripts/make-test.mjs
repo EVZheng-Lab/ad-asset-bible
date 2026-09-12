@@ -351,8 +351,26 @@ console.log('\n=== 应当通过的样本 ===\n');
     console.log('      ' + (r.stderr || '').trim().split('\n').slice(0, 8).join('\n      '));
   }
 }
+/* ★ 豁免用例：**闸门误伤也要有用例守着**，方向跟上面那 59 条相反。
+   起因是实跑《声声相许》：道具描述里的「彩色相纸」被 DOWNSTREAM 的「色相」
+   按子串拦下了 —— 那说的是一张照片的载体，不是配色决策。
+   加了 DOWNSTREAM_OK 豁免之后，这一条守的是那份豁免还在：
+   哪天有人把它删了或改错了，这里立刻报警，而不是等下一次实跑再撞一遍。 */
+{
+  const d = clone();
+  d.props[0].brief = '一张巴掌大的彩色相纸照片，四边留白边，背面印着冲印店字号。右下角一道压出来的斜折痕最好认。';
+  const f = join(FIX, 'ok-exempt-words.json');
+  writeFileSync(f, JSON.stringify(d, null, 2), 'utf8');
+  const r = run(f, '_selftest-ok-exempt');
+  if (r.status === 0) console.log('  ✓ ok-exempt-words        通过（「彩色相纸」不该被「色相」拦下）');
+  else {
+    fail++;
+    console.log('  ✗ ok-exempt-words        本该通过却被拒了 —— DOWNSTREAM_OK 那份豁免丢了或改错了');
+    console.log('      ' + (r.stderr || '').trim().split('\n').slice(0, 8).join('\n      '));
+  }
+}
 
-const total = CASES.length + 1;
+const total = CASES.length + 2;
 console.log(`\n${fail === 0 ? '✓ 全部通过' : `✗ ${fail} 项不符合预期`}（共 ${total} 项）`);
 if (fail) console.log('\n抓不住的闸门等于没有 —— 修好 build.mjs 的对应预检再交付。');
 process.exit(fail ? 1 : 0);

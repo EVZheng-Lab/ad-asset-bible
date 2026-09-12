@@ -50,6 +50,14 @@ const PLACEHOLDER_RE = /\[(?![0-9]+\])[^\]]{0,80}\]|___|TODO|待填|占位/;
 const DOWNSTREAM = ['机位','景别','构图','焦段','景深','虚化','运镜','特写','远景','近景','中景','俯拍','仰拍',
   '光比','柔光','硬光','主光','补光','布光','光晕','颗粒','暗角','过曝',
   '饱和度','色相','色调','偏暖','偏冷','对比度','调色','影调'];
+/* ★ 中文子串误伤的豁免。DOWNSTREAM 是按**子串**命中的，而有些合法的东西名里正好
+   裹着一个下游词 —— 实跑《声声相许》时「彩**色相**纸」被「色相」拦下了，
+   那说的是一张照片的载体（画面里看得见的东西），不是配色决策。
+   豁免的做法是**先把整个长词抠掉再匹配**：「色相」本身照拦，只有出现在这几个
+   长词里才放过，不是给「色相」开白名单。
+   ★ 往这里加词的判据只有一条：这个长词是**画面里看得见的东西名**，
+     而不是在描述色彩/机位/光线的决策。拿不准就别加，改措辞更省事。 */
+const DOWNSTREAM_OK = ['彩色相纸','彩色相片','黑白相纸','单色相机','原色相纸'];
 const BRIEF_MAX = 300;   // 需求描述字数上限。超了就是又在写规格书了
 const HTML_RE = /<\/?(div|span|style|p|br|table|tr|td|b|i|em|strong)\b|style\s*=\s*["']|background\s*:|<script/i;
 
@@ -239,6 +247,9 @@ const BIO_ARC_MAX = 700;
 const errs = [];
 const E = (path, msg, fix) => errs.push({ path, msg, fix });
 const hit = (t, words) => { for (const w of words) if (String(t ?? '').includes(w)) return w; return null; };
+/* 匹配前把豁免的长词抠掉（见 DOWNSTREAM_OK 那节）。抠掉而不是加白名单，
+   是为了让被裹在长词里的那一次放过、单独出现的那一次照拦。 */
+const stripOk = (t, oks) => oks.reduce((s, w) => s.split(w).join(''), String(t ?? ''));
 
 /** 三类资产 + 全部变体共用的四条：场次号 / 场次统计 / 用途说明 / 跨行指代 */
 function checkNoBackstory(text, path) {
@@ -282,7 +293,7 @@ function checkBriefBasics(text, path, { what = '需求描述' } = {}) {
       `${what}只要几句话。写长了会压掉图像模型自己的先验，图反而更差 —— ` +
       '实测「一个中式庭院」五个字比上千字的规格出图更好。' +
       '尺寸、材料清单、机位、光线一律不写，那些是 Lira 和图像模型的活。');
-  const d = hit(t, DOWNSTREAM);
+  const d = hit(stripOk(t, DOWNSTREAM_OK), DOWNSTREAM);
   if (d) E(path, `出现下游词「${d}」`,
     '机位/景别/光质/调色是 Lira 与 color-script 的活，写进来会跟它们的措辞打架。');
   checkNoBackstory(t, path);
@@ -328,7 +339,7 @@ function checkBioField(text, path) {
   if (t.length > BRIEF_MAX)
     E(path, `${t.length} 字，超过 ${BRIEF_MAX}`,
       '单块几句话就够。整段还另有合计上限 —— 档案是给下游每场改写用的底本，不是人物小传。');
-  const d = hit(t, DOWNSTREAM);
+  const d = hit(stripOk(t, DOWNSTREAM_OK), DOWNSTREAM);
   if (d) E(path, `出现下游词「${d}」`,
     'ACTING rule 7 原话是 `No camera, no color` —— 机位与调色是 Lira / CINEDANCE 的活，' +
     '档案只管表演、脸、声音、动作这四样。');
