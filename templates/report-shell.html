@@ -374,6 +374,9 @@
   .motion .copy{float:right;margin-left:8px}
   /* 特效静态描述的标签，跟动态块的「动态」成对出现 —— 只标一边，看的人分不清上下的区别 */
   .lab{color:var(--accent);font-weight:600;margin-right:8px}
+  /* 静态、动态两段用同一种框，两个标签才左对齐 */
+  .seg{padding:7px 10px;border:1px dashed var(--border);border-radius:6px}
+  .var .vb.seg{margin-top:8px}
 
   #probe{position:absolute;left:-9999px;top:-9999px;font-size:100px;white-space:nowrap}
 </style></head><body>
@@ -588,7 +591,7 @@ function variantCell(vs, lab){
     return '<div class="var"><button class="copy" data-p="'+vi+'">复制</button>'+
       '<span class="vt">'+esc(v.tag)+'</span><span class="vn">'+esc(v.name)+'</span>'+
       '<span class="vs">'+esc((v.scenes||[]).join(' '))+'</span>'+
-      '<div class="vb">'+(lab?'<b class="lab">'+esc(lab)+'</b>':'')+esc(v.brief)+'</div>'+
+      '<div class="vb'+(lab?' seg':'')+'">'+(lab?'<b class="lab">'+esc(lab)+'</b>':'')+esc(v.brief)+'</div>'+
       (v.motion?motionBlock(v.motion):'')+'</div>';
   }).join('');
 }
@@ -618,7 +621,7 @@ function addRow(tbody, opts){
     '</td>'+
     '<td><button class="copy" data-p="'+opts.pi+'" title="复制需求描述">复制</button>'+
       (opts.baseHtml||'')+
-      '<div class="brief">'+(opts.lab?'<b class="lab">'+esc(opts.lab)+'</b>':'')+esc(opts.brief)+'</div>'+
+      '<div class="brief'+(opts.lab?' seg':'')+'">'+(opts.lab?'<b class="lab">'+esc(opts.lab)+'</b>':'')+esc(opts.brief)+'</div>'+
       (opts.refsHtml||'')+'</td>'+
     '<td>'+variantCell(opts.vs, opts.lab)+'</td>';
   tbody.appendChild(tr);
