@@ -372,6 +372,8 @@
     font-size:13px;line-height:1.7;color:var(--dim)}
   .motion b{color:var(--accent);font-weight:600;margin-right:8px}
   .motion .copy{float:right;margin-left:8px}
+  /* 特效静态描述的标签，跟动态块的「动态」成对出现 —— 只标一边，看的人分不清上下的区别 */
+  .lab{color:var(--accent);font-weight:600;margin-right:8px}
 
   #probe{position:absolute;left:-9999px;top:-9999px;font-size:100px;white-space:nowrap}
 </style></head><body>
@@ -579,14 +581,14 @@ function sceneCell(list){
   return '<div class="scenes" title="'+esc(s.join(' '))+'">场次 '+esc(shown.join(' '))+
     (s.length>14?' … ':'')+'</div>';
 }
-function variantCell(vs){
+function variantCell(vs, lab){
   if(!vs||!vs.length) return '<span class="novar">— 无变体，只需主视角一版</span>';
   return vs.map(function(v){
     var vi=push(v.brief);
     return '<div class="var"><button class="copy" data-p="'+vi+'">复制</button>'+
       '<span class="vt">'+esc(v.tag)+'</span><span class="vn">'+esc(v.name)+'</span>'+
       '<span class="vs">'+esc((v.scenes||[]).join(' '))+'</span>'+
-      '<div class="vb">'+esc(v.brief)+'</div>'+
+      '<div class="vb">'+(lab?'<b class="lab">'+esc(lab)+'</b>':'')+esc(v.brief)+'</div>'+
       (v.motion?motionBlock(v.motion):'')+'</div>';
   }).join('');
 }
@@ -616,9 +618,9 @@ function addRow(tbody, opts){
     '</td>'+
     '<td><button class="copy" data-p="'+opts.pi+'" title="复制需求描述">复制</button>'+
       (opts.baseHtml||'')+
-      '<div class="brief">'+esc(opts.brief)+'</div>'+
+      '<div class="brief">'+(opts.lab?'<b class="lab">'+esc(opts.lab)+'</b>':'')+esc(opts.brief)+'</div>'+
       (opts.refsHtml||'')+'</td>'+
-    '<td>'+variantCell(opts.vs)+'</td>';
+    '<td>'+variantCell(opts.vs, opts.lab)+'</td>';
   tbody.appendChild(tr);
 }
 
@@ -685,7 +687,8 @@ VFXS.forEach(function(x){
   var fromHtml = fr.length ? '<div class="base"><b>发出者</b> '+
       fr.map(function(r){return esc(r)+(NAMES[r]?' · '+esc(NAMES[r]):'')}).join('、')+'</div>' : '';
   addRow(tbv,{tag:x.tag,name:x.name,scenes:x.scenes,note:x.note,brief:x.brief,vs:x.variants||[],
-    baseHtml:fromHtml, refsHtml:(x.motion?motionBlock(x.motion):''), pi:push(x.brief)});
+    baseHtml:fromHtml, refsHtml:(x.motion?motionBlock(x.motion):''), pi:push(x.brief),
+    lab:'静态'});
 });
 
 /* ---------- 角色档案 ----------
