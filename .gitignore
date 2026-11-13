@@ -5,6 +5,7 @@ Output/*.html
 # （tests/fixtures/ok.json 是手写的真源，必须提交）
 tests/fixtures/bad-*.json
 tests/fixtures/ok-exempt-words.json
+tests/fixtures/ok-vfx.json
 
 # ★ 实跑时的工作目录：剧本原文、从剧本派生的盘点数据、一次性加工脚本。
 #   ★★ 绝不能进版本库 —— 里头是**第三方的剧本原文**（受版权保护的作品），

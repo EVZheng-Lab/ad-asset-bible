@@ -96,6 +96,16 @@ const OUTFIT_SWAP = ['另一套','另一身','换一套','换一身','整套换'
 /* 道具状态变体不许换成另一件物 —— 仿制品/赝品是另一件东西，另建资产。
    注意只对**变体** brief 生效：主资产本身就是赝品是完全合法的。 */
 const PROP_SWAP = ['另一件','另一枚','另一把','另一张','换一件','仿制','赝品','复制品','替代品'];
+/* 特效阶段变体不许换成另一个技能 —— 蓄力/释放/消散、黑化变色是同一个特效的不同阶段；
+   另一招、另一种技能是另一份特效资产。 */
+const VFX_SWAP = ['另一种','另一招','另一个技能','换一招','换成另','改成另一'];
+/* ===== 特效专有 =====
+ * ★ 特效资产图是这个特效**本身的造型定稿**（形态、颜色、认得出的那一处），不是一个镜头。
+ *   它怎么动、动多久、慢不慢放，是下游视频提示词每个镜头各自的事 ——
+ *   跟角色那边"表情动作不进形象底板"是同一个道理。
+ *   ★ 描述"它长什么样"时用到动词是合法的（"贴着地面向外翻卷"是形态），
+ *     这里只拦明说节奏与时长的词。 */
+const VFX_TIMING = ['慢动作','慢镜头','升格','降格','几秒','秒钟','时长','持续时间','一闪而过'];
 
 /* ===== 只写需求，不写"为什么有这个需求" =====
  * 描述是给图像模型画这个东西用的。剧情、场次统计、跨场景比较全都属于"为什么"：
@@ -378,6 +388,19 @@ function checkVoice(vc, path, what) {
   }
 }
 
+/** 特效专有：资产图里不放人 + 不写节奏时长 */
+function checkVfxLane(text, path) {
+  const t = String(text ?? '');
+  const h = hit(t, PEOPLE);
+  if (h) E(path, `出现人物「${h}」`,
+    '特效资产图画的是**特效本身** —— 造型定稿，不是一个镜头。谁发出它、谁站在旁边，' +
+    '是下游每个镜头的事；发出者登记在 from 字段里，不写进描述。');
+  const m = hit(t, VFX_TIMING);
+  if (m) E(path, `出现节奏/时长「${m}」`,
+    '特效怎么动、动多久、慢不慢放是下游视频提示词的活 —— 资产只锁它**长什么样**。' +
+    '描述形态时用动词是合法的（"贴着地面向外翻卷"），节奏和时长不写。');
+}
+
 /** 变体共用：tag 前缀 / name / scenes / brief 非空 */function checkVariant(v, VP, parentTag, hint) {
   if (!v.tag || !String(v.tag).startsWith(parentTag + '_'))
     E(`${VP}.tag`, `变体标签「${v.tag ?? ''}」应以「${parentTag}_」开头`, '变体挂在本资产之下。');
@@ -409,6 +432,7 @@ const LOCS  = Array.isArray(D.assets) ? D.assets : [];
 const CHARS = Array.isArray(D.characters) ? D.characters : [];
 const FITS  = Array.isArray(D.outfits) ? D.outfits : [];
 const PROPS = Array.isArray(D.props) ? D.props : [];
+const VFXS  = Array.isArray(D.effects) ? D.effects : [];
 const BIOS  = Array.isArray(D.bios) ? D.bios : [];
 
 /* ===== meta ===== */
@@ -422,7 +446,7 @@ if (!LOCS.length)
 /* 角色/道具是可选的（纯场景盘点仍然合法）；但数组非空就必须报计数，好跟实际对账。
    ★ 变体计数只对**场景**做双记账（那是最容易写错的地方 —— 换空间那个坑）；
      角色/道具的状态变体默认没有、数量个位数，双记账的麻烦不抵收益，由 badge 直接算。 */
-for (const [arr, key, label] of [[CHARS, 'charCount', '角色底档'], [FITS, 'outfitCount', '服装资产'], [PROPS, 'propCount', '关键道具'], [BIOS, 'bioCount', '角色档案']])
+for (const [arr, key, label] of [[CHARS, 'charCount', '角色底档'], [FITS, 'outfitCount', '服装资产'], [PROPS, 'propCount', '关键道具'], [VFXS, 'vfxCount', '特效'], [BIOS, 'bioCount', '角色档案']])
   if (arr.length && (meta[key] === undefined || meta[key] === ''))
     E(`meta.${key}`, `缺失 —— 有 ${arr.length} 份${label}却没报数`, '写成实际数，好跟表格对账。');
 
@@ -443,7 +467,8 @@ const claim = (tag, path, re, shape) => {
 const locCovered = new Set();   // 场景覆盖的场次
 const charCovered = new Set();  // 角色覆盖的场次
 const propCovered = new Set();  // 道具覆盖的场次
-let locVarN = 0, fitVarN = 0, propVarN = 0;
+const vfxCovered = new Set();   // 特效覆盖的场次
+let locVarN = 0, fitVarN = 0, propVarN = 0, vfxVarN = 0;
 
 /* ===== 一、场景 ===== */
 const basedOnRaw = [];   // {tag, basedOn, path} —— 全部场景 tag 收齐后再解析（跟 refUses 一个套路）
@@ -696,6 +721,67 @@ for (const [i, p] of PROPS.entries()) {
   }
 }
 
+/* ===== 四之二、特效 =====
+ * 只收**会重复出现、有一致性要求**的特效：传送门、某个角色的冲击波、某个技能打出的旋风。
+ * 判据跟道具同一句：**这个特效下一次出现时，观众会不会认出它是同一个？**
+ * 这是 EV 定的根本条件 —— 只出现一次、没有上下文延续的（一次爆炸、一阵烟），
+ * 交给视频提示词一次性表现就行，建档反而是在压先验。
+ * ★ 三条分界（EV 2026-11-13 定）：
+ *   - 依附在道具上的光与能量（剑被激活后发光）→ **道具的状态变体**，不进这张表
+ *   - 怪物、生物、会动有戏的东西 → **角色**
+ *   - 没戏、也不需要上下文延续的视觉现象 → 场景里的东西，或交给视频提示词
+ * ★ 跟道具一样只登记**造型**，不登记运动 —— 见 VFX_TIMING 那节。 */
+const vfxTags = new Set();
+const fromUses = [];   // {ref, path} —— 全部 tag 收齐后再解析
+for (const [i, x] of VFXS.entries()) {
+  const P = `effects[${i}]`;
+  claim(x.tag, P, /^@vfx_[a-z0-9_]+$/, '@vfx_<小写英数下划线>');
+  if (x.tag) vfxTags.add(x.tag);
+  if (!x.name) E(`${P}.name`, '缺特效名', '');
+  if (x.note !== undefined && x.note !== '') checkPlaceholder(x.note, `${P}.note`);
+
+  if (!Array.isArray(x.scenes) || !x.scenes.length)
+    E(`${P}.scenes`, '没登记场次', '这个特效出现在剧本哪几场。');
+  else {
+    x.scenes.forEach(s => vfxCovered.add(s));
+    const own = new Set(x.scenes);
+    (x.variants ?? []).forEach(v => (v.scenes ?? []).forEach(s => own.add(s)));
+    if (own.size < 2)
+      E(`${P}.scenes`, `只覆盖 1 个场次 —— 不是会重复出现的特效`,
+        '特效建档的根本条件是**重复出现、有一致性要求**：下一次出现时观众得认出是同一个。' +
+        '只出现一次的（一次爆炸、一阵烟）没有上下文延续，交给视频提示词一次性表现就行。' +
+        '删掉它，或者补上它真正出现的其他场次。');
+  }
+
+  if (!x.brief || !String(x.brief).trim())
+    E(`${P}.brief`, '空', '几句话写清这是什么现象、什么形态什么颜色、哪一处最好认。');
+  else {
+    checkBriefBasics(x.brief, `${P}.brief`, { what: '特效描述' });
+    checkVfxLane(x.brief, `${P}.brief`);
+  }
+
+  /* from —— 这个特效是谁/哪件东西发出来的（可选）。只是登记归属，不进复制文本：
+     特效资产图画的是特效本身，发出者在不在画面里是下游每个镜头的事。 */
+  if (x.from !== undefined) {
+    if (!Array.isArray(x.from))
+      E(`${P}.from`, 'from 必须是数组', '例 ["@char_along"]。没有发出者（比如传送门）就整个省掉这个字段。');
+    else x.from.forEach((r, k) => fromUses.push({ ref: r, path: `${P}.from[${k}]` }));
+  }
+
+  for (const [j, v] of (x.variants ?? []).entries()) {
+    vfxVarN++;
+    const VP = `${P}.variants[${j}]`;
+    checkVariant(v, VP, x.tag, '例：蓄力 / 释放 / 消散。');
+    (v.scenes ?? []).forEach(s => vfxCovered.add(s));
+    checkVfxLane(v.brief, `${VP}.brief`);
+    const s = hit(v.brief, VFX_SWAP);
+    if (s) E(`${VP}.brief`, `出现「${s}」—— 这是换成了另一个特效，不是阶段变体`,
+      `阶段变体是**同一个特效**的不同阶段或形态：蓄力、释放、消散，或剧情里变了颜色 —— ` +
+      `认得出的那一处还在。\n` +
+      `    另一招、另一种技能是**另一份特效资产**：新 tag、自己的 brief、把这个场次登记到它名下。`);
+  }
+}
+
 /* ===== 五、角色档案（表演与声音的权威版本，不出图） =====
  * 每个底档一份，一一对应。档案**不另起 tag** —— 它不是出图资产，底档的 tag 就是它的身份。
  * 为什么"一一对应"值得单独上闸门：档案是"这个人怎么演"的唯一权威版本，
@@ -939,6 +1025,25 @@ for (const { ref, path } of refUses) {
       '如果确实是一件道具装在另一件里，那是两份独立资产，不用 refs。');
 }
 
+/* ===== 六之二、effects[].from 解析 =====
+ * ★ 跟 refs 的粒度要求**相反**：from 可以指角色底档。refs 是"画面上画着谁"，
+ *   要拿成图做参考，所以必须指到穿着哪套衣服；from 只是登记"这是谁的技能"，
+ *   技能跟着人走、不跟着衣服走，指底档最准确。
+ * 只许指角色（底档/服装）或道具（含状态变体 —— 激活后的剑才放得出剑气）。
+ * 指场景、指另一个特效都没有意义：传送门本身就是特效，不需要发出者。 */
+for (const { ref, path } of fromUses) {
+  if (!ref || typeof ref !== 'string') { E(path, '空引用', '填一个已存在的角色或道具 tag。'); continue; }
+  if (!tags.has(ref)) {
+    E(path, `引用的「${ref}」不存在`,
+      '这份 JSON 里没有这个 tag —— 要么拼错了，要么发出它的角色/道具没建档。');
+    continue;
+  }
+  if (!/^@(char|prop)_/.test(ref))
+    E(path, `「${ref}」不是角色或道具`,
+      'from 登记的是"这个特效是谁/哪件东西发出来的"，只能指角色或道具。' +
+      '没有发出者的特效（传送门、空中的裂隙）整个省掉 from。');
+}
+
 /* ===== 计数与覆盖自洽 —— 盘点的正确性全在这里 ===== */
 if (meta.assetCount !== undefined && Number(meta.assetCount) !== LOCS.length)
   E('meta.assetCount', `写的是 ${meta.assetCount}，实际 ${LOCS.length}`, '改成实际数。');
@@ -950,6 +1055,8 @@ if (meta.outfitCount !== undefined && Number(meta.outfitCount) !== FITS.length)
   E('meta.outfitCount', `写的是 ${meta.outfitCount}，实际 ${FITS.length}`, '改成实际数（服装资产数）。');
 if (meta.propCount !== undefined && Number(meta.propCount) !== PROPS.length)
   E('meta.propCount', `写的是 ${meta.propCount}，实际 ${PROPS.length}`, '改成实际数（关键道具数）。');
+if (meta.vfxCount !== undefined && Number(meta.vfxCount) !== VFXS.length)
+  E('meta.vfxCount', `写的是 ${meta.vfxCount}，实际 ${VFXS.length}`, '改成实际数（特效数）。');
 if (meta.bioCount !== undefined && Number(meta.bioCount) !== BIOS.length)
   E('meta.bioCount', `写的是 ${meta.bioCount}，实际 ${BIOS.length}`, '改成实际数（角色档案数，应与角色底档数相等）。');
 
@@ -957,13 +1064,13 @@ if (meta.sceneCount !== undefined && locCovered.size !== Number(meta.sceneCount)
   E('meta.sceneCount', `声明 ${meta.sceneCount} 场，实际覆盖 ${locCovered.size} 个场次号（场景表）`,
     '有场次没人管，或场次号写重了。漏掉的那场到时候没有场景可用 —— 这是盘点最要紧的一条。');
 
-/* ★ 交叉对账：角色/道具登记的场次必须都在场景表里出现过。
+/* ★ 交叉对账：角色/道具/特效登记的场次必须都在场景表里出现过。
  *   有一场戏有人有道具却没有地方，只有两种可能 —— 场景表漏了一场，或者场次号写错了。
- *   这一条只有在三类同住一份数据时才做得到。 */
+ *   这一条只有在几类同住一份数据时才做得到。 */
 {
-  const orphan = [...new Set([...charCovered, ...propCovered])].filter(s => !locCovered.has(s));
+  const orphan = [...new Set([...charCovered, ...propCovered, ...vfxCovered])].filter(s => !locCovered.has(s));
   if (orphan.length)
-    E('(交叉对账)', `场次 ${orphan.join(' ')} 在角色/道具表里出现，但场景表没有`,
+    E('(交叉对账)', `场次 ${orphan.join(' ')} 在角色/道具/特效表里出现，但场景表没有`,
       '有人有道具却没有地方 —— 要么场景表漏了这几场（那场到时候没有场景可用，' +
       '这是盘点最严重的失败），要么场次号写错了。两边核一遍。');
 }
@@ -972,7 +1079,7 @@ if (meta.sceneCount !== undefined && locCovered.size !== Number(meta.sceneCount)
 if (!existsSync(SHELL)) { console.error(`外壳不见了: ${SHELL}`); process.exit(2); }
 const shell = readFileSync(SHELL, 'utf8');
 for (const need of ['{{DATA_JSON}}', '{{TITLE}}', 'id="badge"', 'id="tabs"', 'role="tablist"',
-                    'id="tb"', 'id="tbc"', 'id="tbp"', 'id="tbb"', 'SELFTEST'])
+                    'id="tb"', 'id="tbc"', 'id="tbp"', 'id="tbv"', 'id="tbb"', 'SELFTEST'])
   if (!shell.includes(need)) E('templates/report-shell.html', `外壳缺少 ${need}`, '恢复它，不要手补。');
 
 /* ===== 出结果 ===== */
@@ -1000,8 +1107,10 @@ for (const ph of ['{{DATA_JSON}}', '{{TITLE}}'])
 writeFileSync(outFile, html, 'utf8');
 
 console.log(`✓ 已生成：${outFile}`);
-console.log(`  场景 ${LOCS.length} + ${locVarN} 变体 · 角色 ${CHARS.length} 底档 / ${FITS.length} 套服装 + ${fitVarN} 状态 · 道具 ${PROPS.length} + ${propVarN} 状态`);
-console.log(`  场景表覆盖场次 ${locCovered.size} · 角色表 ${charCovered.size} · 道具表 ${propCovered.size}`);
+console.log(`  场景 ${LOCS.length} + ${locVarN} 变体 · 角色 ${CHARS.length} 底档 / ${FITS.length} 套服装 + ${fitVarN} 状态 · 道具 ${PROPS.length} + ${propVarN} 状态` +
+  (VFXS.length ? ` · 特效 ${VFXS.length} + ${vfxVarN} 阶段` : ''));
+console.log(`  场景表覆盖场次 ${locCovered.size} · 角色表 ${charCovered.size} · 道具表 ${propCovered.size}` +
+  (VFXS.length ? ` · 特效表 ${vfxCovered.size}` : ''));
 if (BIOS.length) {
   const withArc = BIOS.filter(b => Array.isArray(b.arc) && b.arc.length).length;
   console.log(`  角色档案 ${BIOS.length} 份（八块 = 开场状态；voice 原样贴 audio 字段、每次说话都贴）`);

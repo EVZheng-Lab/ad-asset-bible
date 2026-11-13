@@ -110,6 +110,8 @@ const REQUIRED = ['"assets"', '"tag"', '"name"', '"scenes"', '"brief"', '"varian
   '"characters"', '"outfits"', '"char"', '"props"', '"refs"', '"basedOn"',
   '"sceneCount"', '"assetCount"', '"variantCount"', '"charCount"', '"outfitCount"', '"propCount"',
   '"worldview"',
+  /* 特效（2026-11-13 加）。`"from"` 带引号写，跟上面同理 */
+  '"effects"', '"vfxCount"', '"from"',
   /* 角色档案。★ 一律带引号写 —— 裸写 `voice` 会被 `vocalProfile` 之外的东西命中吗？
      不会，但裸写 `char` 就会被 `charCount` 包含掉（上面那条注释记的就是这个坑），
      所以这一整列不做例外，全都带引号。

@@ -8,7 +8,7 @@
   （本注释里刻意不写占位符字面量：build.mjs 用 replace 只换第一处，
     注释里再出现一次会把数据注进注释、真正的槽位反而空着。踩过。）
 
-  ★ 三类资产同住一份 JSON，不是图省事：props[].refs 要能被校验
+  ★ 几类资产同住一份 JSON，不是图省事：props[].refs / effects[].from 要能被校验
     "你引用的那个 tag 确实存在"，拆成三份数据源就拦不住拼错一个字。
 
   ★ note / brief / meta.worldview 里不许留会话引用（"[Image #9]"这类插图编号、
@@ -26,6 +26,7 @@
       "charCount":     4,   // 角色底档数   （characters 非空时必填）
       "outfitCount":  12,   // 服装资产数   （outfits    非空时必填）
       "propCount":     6,   // 关键道具数   （props      非空时必填）
+      "vfxCount":      2,   // 特效数       （effects    非空时必填）
       "bioCount":      4,   // 角色档案数   （bios       非空时必填；应与 charCount 相等）
       "worldview": "一两句话：年代/阶层/风格的结论（第 0 步的产出，必填）。
                     只写结论本身，依据留在各资产的 note 里；显示在页面顶部剧本路径正下方。"
@@ -100,6 +101,26 @@
       ]
     }],
 
+    // ── 四之二、特效（可选）：只收**会重复出现、有一致性要求**的 ─────
+    //    传送门、某个角色的冲击波、某个技能打出的旋风。只出现一次的交给视频提示词。
+    //    ★ 依附在道具上的光与能量（剑被激活后发光）是**道具的状态变体**，不在这儿；
+    //      怪物、生物、会动有戏的东西是**角色**
+    "effects": [{
+      "tag":    "@vfx_chongjibo",        // @vfx_ + 小写英数下划线
+      "name":   "阿龙的冲击波",
+      "scenes": ["5-1","30-2"],          // 少于 2 个场次会被拒 —— 不会重复出现就不用锁
+      "note":   "可选",
+      "brief":  "几句话写清这是什么现象、什么形态什么颜色、哪一处最好认。
+                 只锁造型：怎么动、动多久、慢不慢放是下游视频提示词的活。图里不放人。",
+      "from":   ["@char_along"],         // 可选：谁/哪件东西发出来的。只许指角色或道具
+                                         // ★ 可以指角色底档（技能跟着人走，不跟着衣服走），
+                                         //   这一点跟 refs 相反。只登记归属，不进复制文本
+      "variants": [                      // 阶段变体：蓄力 / 释放 / 消散，或剧情里变了颜色
+        { "tag":"@vfx_chongjibo_xuli", "name":"蓄力", "scenes":["30-2"],
+          "brief":"改成尚未推出的样子：掌前一团压紧的扭曲空气，周围碎屑悬停" }
+      ]
+    }],
+
     // ── 五、角色档案（可选，但**建了底档就必须有**）：表演与声音的权威版本 ────
     //    ★ 它跟前四类不是同一种东西：前四类是出图资产（text + image 一对），
     //      档案不出图、也不进图像提示词。官方把角色拆成四种生命周期：
@@ -159,7 +180,7 @@
   }
 
   URL 参数:
-    ?tab=loc|char|prop|bio|all   切到哪张表。all = 全部同时铺开
+    ?tab=loc|char|prop|vfx|bio|all   切到哪张表。all = 全部同时铺开
                              （★ 无头截图自检必须用 all，否则只截得到当前那一张；
                                浏览器 Ctrl+F 也搜不到隐藏 Tab 里的文字）
     ?row=N                   高亮并滚到第 N 行（会自动切到该行所在的那张表）
@@ -388,6 +409,17 @@
     </div>
   </div>
 
+  <div class="sect" id="sect-vfx" role="tabpanel" aria-labelledby="tab-vfx" tabindex="-1">
+    <h2>特效 <em>只收会重复出现、要保持一致的</em></h2>
+    <div class="tablewrap">
+      <table>
+        <colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"></colgroup>
+        <thead><tr><th>序号</th><th>特效</th><th>需求描述</th><th>阶段变体</th></tr></thead>
+        <tbody id="tbv"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="sect" id="sect-bio" role="tabpanel" aria-labelledby="tab-bio" tabindex="-1">
     <h2>角色档案 <em>这个人怎么演、说话什么声 —— 写一次，之后每场只改写不重推</em></h2>
     <div class="bios" id="tbb"></div>
@@ -432,6 +464,9 @@ var ANCHOR_RE = /参照物/;
 var RELOCATE_RE = /(视点|视角|镜头|机位)\s*(移进|移到|移入|挪进|挪到|换到|转到|进到)/;
 var OUTFIT_SWAP = ['另一套','另一身','换一套','换一身','整套换','换成另','改成另一'];
 var PROP_SWAP = ['另一件','另一枚','另一把','另一张','换一件','仿制','赝品','复制品','替代品'];
+var VFX_SWAP = ['另一种','另一招','另一个技能','换一招','换成另','改成另一'];
+/* 特效专有：资产图是特效本身的造型定稿 —— 怎么动、动多久、慢不慢放是下游视频提示词的活 */
+var VFX_TIMING = ['慢动作','慢镜头','升格','降格','几秒','秒钟','时长','持续时间','一闪而过'];
 /* ===== 角色档案（bios）专有 =====
    ★ 双向墙：bios 禁服装/相貌词（档案退化成外观复述就白建了；ACTING rule 6
      `No wardrobe. The profile must survive any costume change.`），
@@ -470,6 +505,7 @@ var LOCS  = D.assets     || [];
 var CHARS = D.characters || [];
 var FITS  = D.outfits    || [];
 var PROPS = D.props      || [];
+var VFXS  = D.effects    || [];
 var BIOS  = D.bios       || [];
 
 /* tag → 名称，给 refs 提示用（含变体） */
@@ -478,6 +514,7 @@ LOCS.forEach(function(a){ NAMES[a.tag]=a.name; (a.variants||[]).forEach(function
 CHARS.forEach(function(c){ NAMES[c.tag]=c.name });
 FITS.forEach(function(f){ NAMES[f.tag]=f.name; (f.variants||[]).forEach(function(v){NAMES[v.tag]=f.name+' · '+v.name}) });
 PROPS.forEach(function(p){ NAMES[p.tag]=p.name; (p.variants||[]).forEach(function(v){NAMES[v.tag]=p.name+' · '+v.name}) });
+VFXS.forEach(function(x){ NAMES[x.tag]=x.name; (x.variants||[]).forEach(function(v){NAMES[v.tag]=x.name+' · '+v.name}) });
 var BASE = {};   // 角色底档 tag → brief
 CHARS.forEach(function(c){ BASE[c.tag]=c.brief });
 
@@ -492,6 +529,7 @@ var mparts=
 if(CHARS.length) mparts+='<div><span>角色底档</span> <b>'+CHARS.length+'</b></div>';
 if(FITS.length)  mparts+='<div><span>服装资产</span> <b>'+FITS.length+'</b></div>';
 if(PROPS.length) mparts+='<div><span>关键道具</span> <b>'+PROPS.length+'</b></div>';
+if(VFXS.length)  mparts+='<div><span>特效</span> <b>'+VFXS.length+'</b></div>';
 if(BIOS.length)  mparts+='<div><span>角色档案</span> <b>'+BIOS.length+'</b></div>';
 document.getElementById('meta').innerHTML=mparts;
 
@@ -620,6 +658,18 @@ PROPS.forEach(function(p){
     pi:push(p.brief+refLines(rf))});
 });
 
+/* ---------- 特效表 ----------
+   发出者（from）只显示、不进复制文本：特效资产图画的是特效本身，
+   发出者在不在画面里是下游每个镜头的事。复用底档指针那一行的样式。 */
+var tbv=document.getElementById('tbv');
+VFXS.forEach(function(x){
+  var fr=(x.from||[]);
+  var fromHtml = fr.length ? '<div class="base"><b>发出者</b> '+
+      fr.map(function(r){return esc(r)+(NAMES[r]?' · '+esc(NAMES[r]):'')}).join('、')+'</div>' : '';
+  addRow(tbv,{tag:x.tag,name:x.name,scenes:x.scenes,note:x.note,brief:x.brief,vs:x.variants||[],
+    baseHtml:fromHtml, pi:push(x.brief)});
+});
+
 /* ---------- 角色档案 ----------
    ★ 卡片，不是第四张同构表。档案不是出图资产：它没有变体（表演不分版本，它就是那个
      唯一权威版本）、也不登记场次（每场都用它，登记等于把全片场次抄一遍）——
@@ -739,6 +789,7 @@ var SECTS=[
   {k:'loc', lab:'场景',      n:LOCS.length},
   {k:'char',lab:'角色 · 服装',n:FITS.length},
   {k:'prop',lab:'关键道具',   n:PROPS.length},
+  {k:'vfx', lab:'特效',       n:VFXS.length},
   {k:'bio', lab:'角色档案',   n:BIOS.length}
 ];
 var LIVE=SECTS.filter(function(s){return s.n>0});
@@ -746,7 +797,7 @@ var tabsEl=document.getElementById('tabs'), wrapEl=document.querySelector('.wrap
 var sectOf=function(k){return document.getElementById('sect-'+k)};
 
 /* ---------- Tab 切换 ----------
-   ?tab=loc|char|prop|bio|all 深链；all = 四块同时铺开
+   ?tab=loc|char|prop|vfx|bio|all 深链；all = 全部同时铺开
    （无头截图自检要一次看到全部四块，Ctrl+F 也搜不到隐藏 Tab 里的文字）。
    用 replaceState 不用 pushState：切 Tab 不该往浏览历史里塞记录、把返回键搞坏。 */
 var btns={}, spreadBtn=null, curTab=null;
@@ -856,7 +907,7 @@ document.fonts.ready.then(function(){
   /* 参照物：只算场景 —— 它的锚点是位置参照，是跨镜头对齐的唯一依据 */
   var anchor=function(t){var g=c('anchor'); g.tot++; if(ANCHOR_RE.test(String(t||'')))g.ok++;};
 
-  var locIds={}, charIds={}, propIds={};
+  var locIds={}, charIds={}, propIds={}, vfxIds={};
   LOCS.forEach(function(a){
     take('brief',a.brief,a.scenes,hit(a.brief,PEOPLE)===null);
     anchor(a.brief);
@@ -888,6 +939,20 @@ document.fonts.ready.then(function(){
       take('var-brief',v.brief,v.scenes,clean(v.name)&&hit(v.brief,PROP_SWAP)===null&&!!v.name);
       (v.scenes||[]).forEach(function(x){propIds[x]=1});
     });
+  });
+  /* 特效：资产图不放人、不写节奏时长；阶段变体不许换成另一个技能 */
+  var vfxClean=function(t){return hit(t,PEOPLE)===null&&hit(t,VFX_TIMING)===null};
+  VFXS.forEach(function(x){
+    take('brief',x.brief,x.scenes,vfxClean(x.brief));
+    (x.scenes||[]).forEach(function(i){vfxIds[i]=1});
+    (x.variants||[]).forEach(function(v){
+      take('var-brief',v.brief,v.scenes,
+        clean(v.name)&&vfxClean(v.brief)&&hit(v.brief,VFX_SWAP)===null&&!!v.name);
+      (v.scenes||[]).forEach(function(i){vfxIds[i]=1});
+    });
+    /* from 只许指已建的角色或道具（可以是底档 —— 技能跟着人走） */
+    (x.from||[]).forEach(function(r){
+      var g=c('vfx-from'); g.tot++; if(NAMES[r]&&/^@(char|prop)_/.test(r))g.ok++; });
   });
   /* refs 必须解析得到，且不能指到角色底档（底档只有脸，不知道该拿哪张参考图） */
   var baseOnly={}; CHARS.forEach(function(ch){baseOnly[ch.tag]=1});
@@ -946,23 +1011,26 @@ document.fonts.ready.then(function(){
 
   var covered=Object.keys(locIds).length;
   var covOK = covered===Number(D.meta.sceneCount);
-  /* 交叉对账：角色/道具的场次必须都在场景表里 —— 有人有道具却没有地方 = 场景表漏了一场 */
-  var orphan=Object.keys(charIds).concat(Object.keys(propIds)).filter(function(x){return !locIds[x]});
+  /* 交叉对账：角色/道具/特效的场次必须都在场景表里 —— 有人有道具却没有地方 = 场景表漏了一场 */
+  var orphan=Object.keys(charIds).concat(Object.keys(propIds)).concat(Object.keys(vfxIds))
+    .filter(function(x){return !locIds[x]});
   var xOK = orphan.length===0;
   var pr=document.getElementById('probe'), w1=pr.offsetWidth;
   var fontOK = w1>50 && w1<160;
 
-  var nLV=0, nFV=0, nPV=0;
+  var nLV=0, nFV=0, nPV=0, nXV=0;
   LOCS.forEach(function(a){nLV+=(a.variants||[]).length});
   FITS.forEach(function(f){nFV+=(f.variants||[]).length});
   PROPS.forEach(function(p){nPV+=(p.variants||[]).length});
+  VFXS.forEach(function(x){nXV+=(x.variants||[]).length});
 
   var parts=['<b>SELFTEST</b>',
     'loc='+LOCS.length+'+'+nLV+'v',
     'char='+CHARS.length+'/'+FITS.length+'+'+nFV+'v',
     'prop='+PROPS.length+'+'+nPV+'v',
+    'vfx='+VFXS.length+'+'+nXV+'v',
     'rows='+rowN], bad=false;
-  ['brief','var-brief','lane','no-backstory','char-lane','anchor','scenes','refs',
+  ['brief','var-brief','lane','no-backstory','char-lane','anchor','scenes','refs','vfx-from',
    'bio','bio-lane','bio-arc','bio-pair'].forEach(function(k){
     var v=R[k]||{ok:0,tot:0}, good=(v.ok===v.tot);
     if(!good)bad=true;

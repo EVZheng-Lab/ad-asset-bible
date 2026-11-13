@@ -47,6 +47,19 @@ const FIX = join(ROOT, 'tests', 'fixtures');
 const BUILD = join(ROOT, 'scripts', 'build.mjs');
 const OK = JSON.parse(readFileSync(join(FIX, 'ok.json'), 'utf8'));
 const clone = () => JSON.parse(JSON.stringify(OK));
+/* 特效（2026-11-13 加）。★ 不写进 ok.json：那份样本的世界观是"当代真实社会、无架空"，
+   硬塞一个冲击波进去会让合规样本自相矛盾。改成在用例里现挂一份合规特效再改坏它，
+   外加一条 ok-vfx 通过用例证明挂上去的那份本身是合规的。 */
+const withVfx = d => {
+  d.meta.vfxCount = 1;
+  d.effects = [{
+    tag: '@vfx_chongjibo', name: '阿龙的冲击波', scenes: ['S03', 'S06'], from: ['@char_along'],
+    brief: '从掌前推出的一圈半透明气浪，贴着地面向外翻卷，掀起尘土与碎纸。气浪边缘一道发白的扭曲折光最好认。',
+    variants: [{ tag: '@vfx_chongjibo_xuli', name: '蓄力', scenes: ['S05'],
+      brief: '改成尚未推出的样子：掌前一团压紧的扭曲空气，周围碎屑悬停' }],
+  }];
+  return d;
+};
 
 const CASES = [
   { name: 'placeholder', expect: '残留占位符',
@@ -174,6 +187,42 @@ const CASES = [
   { name: 'refs-to-char-base', expect: '粒度不够',
     note: 'refs 指到了角色底档 —— 底档只有脸，照片上这人穿的是哪套？下游不知道拿哪张参考图',
     mut: d => { d.props[0].refs = ['@char_along']; } },
+
+  /* ===== 特效 =====
+   * 判据是 EV 定的根本条件：**会重复出现、有一致性要求**。只出现一次的交给视频提示词。
+   * 其余几条是类型分派与交叉引用（资产图不放人、不写节奏、from 只指角色或道具、
+   * 场次要在场景表里），不是字段闸门。 */
+  { name: 'vfx-single-scene', expect: '不是会重复出现的特效',
+    note: '只出现一次的特效没有上下文延续，不需要锁一致性 —— 交给视频提示词一次性表现',
+    mut: d => { withVfx(d); d.effects[0].scenes = ['S03']; d.effects[0].variants = []; } },
+
+  { name: 'vfx-people', expect: '出现人物',
+    note: '特效资产图画的是特效本身，谁在旁边是下游每个镜头的事',
+    mut: d => { withVfx(d); d.effects[0].brief += '旁边几个围观的人物被吹得后退。'; } },
+
+  { name: 'vfx-timing', expect: '出现节奏/时长',
+    note: '怎么动、动多久、慢不慢放是视频提示词的活，资产只锁造型',
+    mut: d => { withVfx(d); d.effects[0].brief += '以慢动作推出。'; } },
+
+  { name: 'vfx-variant-swap', expect: '换成了另一个特效',
+    note: '阶段变体换成了另一招 —— 那是另一份特效资产',
+    mut: d => { withVfx(d); d.effects[0].variants[0].brief = '改成另一招：一道竖劈下来的发白光刃'; } },
+
+  { name: 'vfx-from-dangling', expect: '不存在',
+    note: 'from 拼错或发出者没建档',
+    mut: d => { withVfx(d); d.effects[0].from = ['@char_nobody']; } },
+
+  { name: 'vfx-from-loc', expect: '不是角色或道具',
+    note: 'from 指到了场景 —— 发出者只能是角色或道具',
+    mut: d => { withVfx(d); d.effects[0].from = ['@loc_alley']; } },
+
+  { name: 'vfx-xcover-orphan', expect: '但场景表没有',
+    note: '有特效却没有地方 —— 场景表漏了一场，或场次号写错了',
+    mut: d => { withVfx(d); d.effects[0].scenes = ['S03', 'S09']; } },
+
+  { name: 'vfx-count-missing', expect: 'meta.vfxCount',
+    note: '有特效却没报数，没法跟表格对账',
+    mut: d => { withVfx(d); delete d.meta.vfxCount; } },
 
   /* ===== 参照物 =====
    * ★ 这一条守的是全 skill 唯一一条**曾经被声明为必须、却完全没有闸门**的规则。
@@ -370,7 +419,22 @@ console.log('\n=== 应当通过的样本 ===\n');
   }
 }
 
-const total = CASES.length + 2;
+/* 特效合规样本：withVfx 挂上去的那份本身必须能过，否则上面八条 vfx 用例
+   被拦下的原因可能根本不是它们改坏的那一处。 */
+{
+  const d = withVfx(clone());
+  const f = join(FIX, 'ok-vfx.json');
+  writeFileSync(f, JSON.stringify(d, null, 2), 'utf8');
+  const r = run(f, '_selftest-ok-vfx');
+  if (r.status === 0) console.log('  ✓ ok-vfx                 通过（挂了一份合规特效）');
+  else {
+    fail++;
+    console.log('  ✗ ok-vfx                 本该通过却被拒了 —— 特效闸门误伤');
+    console.log('      ' + (r.stderr || '').trim().split('\n').slice(0, 8).join('\n      '));
+  }
+}
+
+const total = CASES.length + 3;
 console.log(`\n${fail === 0 ? '✓ 全部通过' : `✗ ${fail} 项不符合预期`}（共 ${total} 项）`);
 if (fail) console.log('\n抓不住的闸门等于没有 —— 修好 build.mjs 的对应预检再交付。');
 process.exit(fail ? 1 : 0);
