@@ -54,9 +54,10 @@ const withVfx = d => {
   d.meta.vfxCount = 1;
   d.effects = [{
     tag: '@vfx_chongjibo', name: '阿龙的冲击波', scenes: ['S03', 'S06'], from: ['@char_along'],
-    brief: '从掌前推出的一圈半透明气浪，贴着地面向外翻卷，掀起尘土与碎纸。气浪边缘一道发白的扭曲折光最好认。',
+    brief: '一圈半透明的环形气浪，向外翻卷，卷着尘土与碎纸。气浪边缘一道发白的扭曲折光最好认。',
+    motion: '从掌前推出，贴着地面向外扩散，越往外越淡，所过之处尘土被掀起。',
     variants: [{ tag: '@vfx_chongjibo_xuli', name: '蓄力', scenes: ['S05'],
-      brief: '改成尚未推出的样子：掌前一团压紧的扭曲空气，周围碎屑悬停' }],
+      brief: '改成一团压紧的扭曲空气，周围碎屑悬停' }],
   }];
   return d;
 };
@@ -203,6 +204,19 @@ const CASES = [
   { name: 'vfx-timing', expect: '出现节奏/时长',
     note: '怎么动、动多久、慢不慢放是视频提示词的活，资产只锁造型',
     mut: d => { withVfx(d); d.effects[0].brief += '以慢动作推出。'; } },
+
+  /* 静态 / 动态拆开（EV 2026-11-13）：静态描述给图片模型，只画本体 */
+  { name: 'vfx-body-in-static', expect: '静态描述里出现发出部位',
+    note: '静态描述写了从哪儿发出 —— 图片模型只画特效本体，跟身体的关系进 motion',
+    mut: d => { withVfx(d); d.effects[0].brief = '从掌心推出的' + d.effects[0].brief; } },
+
+  { name: 'vfx-dynamic-in-static', expect: '静态描述里出现变化',
+    note: '静态描述写了"越贴近越亮"这类变化 —— 一张静态图画不出来，进 motion',
+    mut: d => { withVfx(d); d.effects[0].brief += '越往外渐渐淡开。'; } },
+
+  { name: 'vfx-no-motion', expect: '缺动态描述',
+    note: '没写动态描述 —— 每个镜头的视频提示词各自现编，同一个特效动成几个样子',
+    mut: d => { withVfx(d); delete d.effects[0].motion; } },
 
   { name: 'vfx-variant-swap', expect: '换成了另一个特效',
     note: '阶段变体换成了另一招 —— 那是另一份特效资产',

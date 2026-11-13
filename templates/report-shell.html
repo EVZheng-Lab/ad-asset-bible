@@ -110,14 +110,17 @@
       "name":   "阿龙的冲击波",
       "scenes": ["5-1","30-2"],          // 少于 2 个场次会被拒 —— 不会重复出现就不用锁
       "note":   "可选",
-      "brief":  "几句话写清这是什么现象、什么形态什么颜色、哪一处最好认。
-                 只锁造型：怎么动、动多久、慢不慢放是下游视频提示词的活。图里不放人。",
+      "brief":  "**静态**，给图片模型：特效本体是什么、什么形态什么颜色、哪一处最好认。
+                 不写从哪儿发出、不写随时间/位置的变化（图片模型画不出来）。图里不放人。",
+      "motion": "**动态**，给视频模型（必填）：怎么动、从哪儿发出、离身体越近越亮这类
+                 每次都一样的运动规律。不写镜头与剪辑（慢放、这一镜几秒）。",
       "from":   ["@char_along"],         // 可选：谁/哪件东西发出来的。只许指角色或道具
                                          // ★ 可以指角色底档（技能跟着人走，不跟着衣服走），
                                          //   这一点跟 refs 相反。只登记归属，不进复制文本
       "variants": [                      // 阶段变体：蓄力 / 释放 / 消散，或剧情里变了颜色
         { "tag":"@vfx_chongjibo_xuli", "name":"蓄力", "scenes":["30-2"],
-          "brief":"改成尚未推出的样子：掌前一团压紧的扭曲空气，周围碎屑悬停" }
+          "brief":"改成一团压紧的扭曲空气，周围碎屑悬停",
+          "motion":"可选：这个阶段动起来跟主资产不一样才写" }
       ]
     }],
 
@@ -364,6 +367,11 @@
     font-size:13px;line-height:1.7;color:var(--dim)}
   .bio .canon b{color:var(--accent);font-weight:600;margin-right:6px}
   .bio .miss{color:var(--bad);font-style:italic}
+  /* 特效的动态描述块：跟静态描述分开复制 */
+  .motion{margin-top:10px;padding:7px 10px;border:1px dashed var(--border);border-radius:6px;
+    font-size:13px;line-height:1.7;color:var(--dim)}
+  .motion b{color:var(--accent);font-weight:600;margin-right:8px}
+  .motion .copy{float:right;margin-left:8px}
 
   #probe{position:absolute;left:-9999px;top:-9999px;font-size:100px;white-space:nowrap}
 </style></head><body>
@@ -467,6 +475,9 @@ var PROP_SWAP = ['另一件','另一枚','另一把','另一张','换一件','�
 var VFX_SWAP = ['另一种','另一招','另一个技能','换一招','换成另','改成另一'];
 /* 特效专有：资产图是特效本身的造型定稿 —— 怎么动、动多久、慢不慢放是下游视频提示词的活 */
 var VFX_TIMING = ['慢动作','慢镜头','升格','降格','几秒','秒钟','时长','持续时间','一闪而过'];
+/* 特效静态描述（brief，给图片模型）不写发出部位、不写随时间/位置的变化 —— 那些进 motion（动态，给视频模型） */
+var VFX_BODY = ['指尖','掌心','手掌','手心','皮肤','身体','身上','全身','周身','手臂'];
+var VFX_DYNAMIC = ['渐渐','逐渐','越来越','越靠近','越贴近','越远','慢慢','缓缓'];
 /* ===== 角色档案（bios）专有 =====
    ★ 双向墙：bios 禁服装/相貌词（档案退化成外观复述就白建了；ACTING rule 6
      `No wardrobe. The profile must survive any costume change.`），
@@ -575,8 +586,15 @@ function variantCell(vs){
     return '<div class="var"><button class="copy" data-p="'+vi+'">复制</button>'+
       '<span class="vt">'+esc(v.tag)+'</span><span class="vn">'+esc(v.name)+'</span>'+
       '<span class="vs">'+esc((v.scenes||[]).join(' '))+'</span>'+
-      '<div class="vb">'+esc(v.brief)+'</div></div>';
+      '<div class="vb">'+esc(v.brief)+'</div>'+
+      (v.motion?motionBlock(v.motion):'')+'</div>';
   }).join('');
+}
+/* 特效的动态描述（给视频模型）：单独一块、单独复制，不跟静态描述（给图片模型）混在一份剪贴板里 */
+function motionBlock(t){
+  var mi=push(t);
+  return '<div class="motion"><button class="copy" data-p="'+mi+'">复制</button>'+
+    '<b>动态</b>'+esc(t)+'</div>';
 }
 function addRow(tbody, opts){
   rowN++;
@@ -667,7 +685,7 @@ VFXS.forEach(function(x){
   var fromHtml = fr.length ? '<div class="base"><b>发出者</b> '+
       fr.map(function(r){return esc(r)+(NAMES[r]?' · '+esc(NAMES[r]):'')}).join('、')+'</div>' : '';
   addRow(tbv,{tag:x.tag,name:x.name,scenes:x.scenes,note:x.note,brief:x.brief,vs:x.variants||[],
-    baseHtml:fromHtml, pi:push(x.brief)});
+    baseHtml:fromHtml, refsHtml:(x.motion?motionBlock(x.motion):''), pi:push(x.brief)});
 });
 
 /* ---------- 角色档案 ----------
@@ -940,10 +958,12 @@ document.fonts.ready.then(function(){
       (v.scenes||[]).forEach(function(x){propIds[x]=1});
     });
   });
-  /* 特效：资产图不放人、不写节奏时长；阶段变体不许换成另一个技能 */
-  var vfxClean=function(t){return hit(t,PEOPLE)===null&&hit(t,VFX_TIMING)===null};
+  /* 特效：静态描述不放人、不写节奏时长、不写发出部位与变化；动态描述必填；阶段变体不许换成另一个技能 */
+  var vfxClean=function(t){return hit(t,PEOPLE)===null&&hit(t,VFX_TIMING)===null&&
+    hit(t,VFX_BODY)===null&&hit(t,VFX_DYNAMIC)===null};
   VFXS.forEach(function(x){
     take('brief',x.brief,x.scenes,vfxClean(x.brief));
+    take('brief',x.motion,null,true);
     (x.scenes||[]).forEach(function(i){vfxIds[i]=1});
     (x.variants||[]).forEach(function(v){
       take('var-brief',v.brief,v.scenes,
