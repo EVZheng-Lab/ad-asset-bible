@@ -377,6 +377,7 @@
   /* 静态、动态两段用同一种框，两个标签才左对齐 */
   .seg{padding:7px 10px;border:1px dashed var(--border);border-radius:6px}
   .var .vb.seg{margin-top:8px}
+  .seg .copy{float:right;margin-left:8px}
 
   #probe{position:absolute;left:-9999px;top:-9999px;font-size:100px;white-space:nowrap}
 </style></head><body>
@@ -588,10 +589,11 @@ function variantCell(vs, lab){
   if(!vs||!vs.length) return '<span class="novar">— 无变体，只需主视角一版</span>';
   return vs.map(function(v){
     var vi=push(v.brief);
-    return '<div class="var"><button class="copy" data-p="'+vi+'">复制</button>'+
+    var btn='<button class="copy" data-p="'+vi+'">复制</button>';
+    return '<div class="var">'+(lab?'':btn)+
       '<span class="vt">'+esc(v.tag)+'</span><span class="vn">'+esc(v.name)+'</span>'+
       '<span class="vs">'+esc((v.scenes||[]).join(' '))+'</span>'+
-      '<div class="vb'+(lab?' seg':'')+'">'+(lab?'<b class="lab">'+esc(lab)+'</b>':'')+esc(v.brief)+'</div>'+
+      '<div class="vb'+(lab?' seg':'')+'">'+(lab?btn+'<b class="lab">'+esc(lab)+'</b>':'')+esc(v.brief)+'</div>'+
       (v.motion?motionBlock(v.motion):'')+'</div>';
   }).join('');
 }
@@ -619,9 +621,12 @@ function addRow(tbody, opts){
       '<span class="cnt">'+(opts.scenes||[]).length+' 场 · '+(opts.vs||[]).length+' 变体</span>'+
       (opts.note?'<div class="note">'+esc(opts.note)+'</div>':'')+
     '</td>'+
-    '<td><button class="copy" data-p="'+opts.pi+'" title="复制需求描述">复制</button>'+
+    '<td>'+(opts.lab?'':'<button class="copy" data-p="'+opts.pi+'" title="复制需求描述">复制</button>')+
       (opts.baseHtml||'')+
-      '<div class="brief'+(opts.lab?' seg':'')+'">'+(opts.lab?'<b class="lab">'+esc(opts.lab)+'</b>':'')+esc(opts.brief)+'</div>'+
+      /* 带标签（特效的静态段）时，复制按钮放进这一段的框里，跟动态段的按钮同一个位置 */
+      '<div class="brief'+(opts.lab?' seg':'')+'">'+
+        (opts.lab?'<button class="copy" data-p="'+opts.pi+'" title="复制需求描述">复制</button>'+
+          '<b class="lab">'+esc(opts.lab)+'</b>':'')+esc(opts.brief)+'</div>'+
       (opts.refsHtml||'')+'</td>'+
     '<td>'+variantCell(opts.vs, opts.lab)+'</td>';
   tbody.appendChild(tr);
